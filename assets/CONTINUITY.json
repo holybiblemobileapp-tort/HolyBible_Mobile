@@ -1,0 +1,292 @@
+[
+    {
+        "ID": "1",
+        "FunctionWord": "am",
+        "Symbol": "="
+    },
+    {
+        "ID": "2",
+        "FunctionWord": "are",
+        "Symbol": "="
+    },
+    {
+        "ID": "3",
+        "FunctionWord": "art",
+        "Symbol": "="
+    },
+    {
+        "ID": "4",
+        "FunctionWord": "be",
+        "Symbol": "="
+    },
+    {
+        "ID": "5",
+        "FunctionWord": "became",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "6",
+        "FunctionWord": "become",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "7",
+        "FunctionWord": "becometh",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "8",
+        "FunctionWord": "been",
+        "Symbol": "="
+    },
+    {
+        "ID": "9",
+        "FunctionWord": "being",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "10",
+        "FunctionWord": "can",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "11",
+        "FunctionWord": "canst",
+        "Symbol": "="
+    },
+    {
+        "ID": "12",
+        "FunctionWord": "could",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "13",
+        "FunctionWord": "couldest",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "14",
+        "FunctionWord": "dare",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "15",
+        "FunctionWord": "did",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "16",
+        "FunctionWord": "didst",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "17",
+        "FunctionWord": "do",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "18",
+        "FunctionWord": "doest",
+        "Symbol": "="
+    },
+    {
+        "ID": "19",
+        "FunctionWord": "doeth",
+        "Symbol": "="
+    },
+    {
+        "ID": "20",
+        "FunctionWord": "doth",
+        "Symbol": "="
+    },
+    {
+        "ID": "21",
+        "FunctionWord": "durst",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "22",
+        "FunctionWord": "equal",
+        "Symbol": "="
+    },
+    {
+        "ID": "23",
+        "FunctionWord": "had",
+        "Symbol": "="
+    },
+    {
+        "ID": "24",
+        "FunctionWord": "has",
+        "Symbol": "="
+    },
+    {
+        "ID": "25",
+        "FunctionWord": "hast",
+        "Symbol": "="
+    },
+    {
+        "ID": "26",
+        "FunctionWord": "hath",
+        "Symbol": "="
+    },
+    {
+        "ID": "27",
+        "FunctionWord": "have",
+        "Symbol": "="
+    },
+    {
+        "ID": "28",
+        "FunctionWord": "is",
+        "Symbol": "="
+    },
+    {
+        "ID": "29",
+        "FunctionWord": "may",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "30",
+        "FunctionWord": "mayest",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "31",
+        "FunctionWord": "might",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "32",
+        "FunctionWord": "mightest",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "33",
+        "FunctionWord": "must",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "34",
+        "FunctionWord": "need",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "35",
+        "FunctionWord": "needest",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "36",
+        "FunctionWord": "needeth",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "37",
+        "FunctionWord": "needs",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "38",
+        "FunctionWord": "ought",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "39",
+        "FunctionWord": "oughtest",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "40",
+        "FunctionWord": "same",
+        "Symbol": "="
+    },
+    {
+        "ID": "41",
+        "FunctionWord": "shall",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "42",
+        "FunctionWord": "shalt",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "43",
+        "FunctionWord": "should",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "44",
+        "FunctionWord": "shouldest",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "45",
+        "FunctionWord": "tend",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "46",
+        "FunctionWord": "tendeth",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "47",
+        "FunctionWord": "unto",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "48",
+        "FunctionWord": "was",
+        "Symbol": "="
+    },
+    {
+        "ID": "49",
+        "FunctionWord": "wast",
+        "Symbol": "="
+    },
+    {
+        "ID": "50",
+        "FunctionWord": "were",
+        "Symbol": "="
+    },
+    {
+        "ID": "51",
+        "FunctionWord": "will",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "52",
+        "FunctionWord": "wilt",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "53",
+        "FunctionWord": "would",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "54",
+        "FunctionWord": "wouldest",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "55",
+        "FunctionWord": "yield",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "56",
+        "FunctionWord": "yielded",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "57",
+        "FunctionWord": "yieldeth",
+        "Symbol": "\u21a6"
+    },
+    {
+        "ID": "58",
+        "FunctionWord": "yielding",
+        "Symbol": "\u21a6"
+    }
+]

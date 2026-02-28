@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 200">
+  <defs>
+    <!-- Gradient fill -->
+    <linearGradient id="goldenGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#FFD700; stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFA500; stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Glow effect -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Line 1 -->
+  <text x="50" y="60" font-family="serif" font-size="36" 
+        fill="url(#goldenGradient)" stroke="#DAA520" stroke-width="1"
+        filter="url(#glow)">
+    lim Son(x)
+  </text>
+
+  <!-- Line 2 -->
+  <text x="50" y="110" font-family="serif" font-size="28" 
+        fill="url(#goldenGradient)" stroke="#DAA520" stroke-width="1"
+        filter="url(#glow)">
+    x → man
+  </text>
+
+  <!-- Line 3 -->
+  <text x="50" y="160" font-family="serif" font-size="36" 
+        fill="url(#goldenGradient)" stroke="#DAA520" stroke-width="1"
+        filter="url(#glow)">
+    = Father
+  </text>
+</svg>

@@ -1,0 +1,57 @@
+name: holybible_mobile
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  just_audio: ^0.10.5
+  just_audio_windows: ^0.2.2
+  audio_session: ^0.1.25
+  sqflite: ^2.3.0
+  sqflite_common_ffi: ^2.3.1
+  sqlite3_flutter_libs: ^0.6.0
+  path: ^1.8.3
+  share_plus: ^7.1.0
+  shared_preferences: ^2.2.2
+  google_fonts: ^6.1.0
+  path_provider: ^2.1.2
+  dio: ^5.4.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icon_foreground.png"
+  adaptive_icon_background: "#5D4037"
+  adaptive_icon_foreground: "assets/icon_foreground.png"
+  windows:
+    generate: true
+    image_path: "assets/icon_foreground.png"
+    icon_size: 256
+
+flutter:
+  uses-material-design: true
+  assets:
+    - README.md
+    - assets/Bible.json
+    - assets/CONTINUITY.json
+    - assets/AUXILIARY.json
+    - assets/PARENTHESES.json
+    - assets/HELP.md
+    - assets/MANUAL.md
+    - assets/NO_WARRANTY_AGREEMENT.md
+    - assets/icon_foreground.png
+    # - assets/audio/ (Now on-demand)
+    # - assets/sync/ (Now on-demand)
