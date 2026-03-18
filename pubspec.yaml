@@ -5,24 +5,25 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.10.7
+  sdk: '>=3.10.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  just_audio: ^0.10.5
+  just_audio: 0.10.5
   just_audio_windows: ^0.2.2
   audio_session: ^0.1.25
-  sqflite: ^2.3.0
-  sqflite_common_ffi: ^2.3.1
+  sqflite: ^2.4.1
+  sqflite_common_ffi: ^2.4.0
   sqlite3_flutter_libs: ^0.6.0
-  path: ^1.8.3
-  share_plus: ^7.1.0
-  shared_preferences: ^2.2.2
-  google_fonts: ^6.1.0
-  path_provider: ^2.1.2
-  dio: ^5.4.1
+  path: ^1.9.1
+  share_plus: ^7.2.2
+  shared_preferences: ^2.5.4
+  google_fonts: ^6.2.1
+  path_provider: ^2.1.5
+  dio: ^5.8.0+1
+  flutter_tts: ^4.2.2
 
 dev_dependencies:
   flutter_test:
@@ -53,5 +54,7 @@ flutter:
     - assets/MANUAL.md
     - assets/NO_WARRANTY_AGREEMENT.md
     - assets/icon_foreground.png
-    # - assets/audio/ (Now on-demand)
-    # - assets/sync/ (Now on-demand)
+    - assets/IGoToTheFather1B.PNG
+    - assets/YOUR_STRONG_REASONS.md
+    - assets/sync/
+    - assets/audio/

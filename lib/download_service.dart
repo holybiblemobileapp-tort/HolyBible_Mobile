@@ -10,8 +10,9 @@ class DownloadService {
     receiveTimeout: const Duration(minutes: 5),
   ));
   
-  // Base URL for your raw assets on GitHub
-  final String _baseUrl = "https://raw.githubusercontent.com/ceyumsama-glitch/HolyBible_Mobile/main/assets";
+  // UPDATED: Base URL for your raw assets on the NEW GitHub repository
+  // Note: For LFS files, we use the /raw/ path which redirects to the LFS media server
+  final String _baseUrl = "https://github.com/holybiblemobileapp-tort/HolyBible_Mobile/raw/main/assets";
 
   Future<void> downloadBook(String bookAbbr, int chapter, {Function(double)? onProgress}) async {
     final key = '$bookAbbr$chapter';
@@ -23,14 +24,15 @@ class DownloadService {
     if (!await audioDir.exists()) await audioDir.create(recursive: true);
     if (!await syncDir.exists()) await syncDir.create(recursive: true);
 
+    // Sync JSONs are NOT LFS, so they can use raw.githubusercontent or the /raw/ path
     final syncUrl = "$_baseUrl/sync/$key.json";
+    // Audio OGGs ARE LFS, they MUST use the /raw/ path to trigger the redirect
     final audioUrl = "$_baseUrl/audio/$key.ogg";
     
     final audioPath = p.join(audioDir.path, '$key.ogg');
     final syncPath = p.join(syncDir.path, '$key.json');
 
     try {
-      // Log the exact URL for manual verification
       debugPrint("DOWNLOAD: Attempting Sync JSON from: $syncUrl");
       
       // 1. Download Sync JSON
@@ -44,7 +46,7 @@ class DownloadService {
 
       debugPrint("DOWNLOAD: Attempting Audio OGG from: $audioUrl");
 
-      // 2. Download Audio OGG
+      // 2. Download Audio OGG (Handles LFS redirect automatically)
       await _dio.download(
         audioUrl,
         audioPath,

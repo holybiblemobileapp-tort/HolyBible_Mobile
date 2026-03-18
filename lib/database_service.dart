@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import 'bible_model.dart';
 import 'bible_logic.dart';
@@ -20,8 +22,13 @@ class DatabaseService {
   }
 
   Future<Database> _initDb() async {
+    if (Platform.isWindows || Platform.isLinux) {
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+    }
+
     final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'holybible_v4.db');
+    final path = join(dbPath, 'holybible_v13.db');
 
     return await openDatabase(
       path,
@@ -41,11 +48,18 @@ class DatabaseService {
         ''');
         await db.execute('CREATE INDEX idx_bible_lookup ON bible (book, chapter)');
         await db.execute('''
-          CREATE TABLE dictionary (
+          CREATE VIRTUAL TABLE bible_fts USING fts5(
+            book,
+            abbr,
+            content,
+            verse_id UNINDEXED,
+            tokenize = "unicode61 remove_diacritics 0"
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE constants (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            term TEXT UNIQUE,
-            definition TEXT,
-            location TEXT,
+            phrase TEXT UNIQUE,
             created_at TEXT
           )
         ''');
@@ -58,24 +72,11 @@ class DatabaseService {
             created_at TEXT
           )
         ''');
-        await db.execute('''
-          CREATE TABLE study_paths (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            description TEXT,
-            created_at TEXT
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE study_path_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            path_id INTEGER,
-            location TEXT,
-            ordinal INTEGER,
-            comment TEXT,
-            FOREIGN KEY (path_id) REFERENCES study_paths (id) ON DELETE CASCADE
-          )
-        ''');
+        final now = DateTime.now().toIso8601String();
+        final initial = ["Holy Mountain", "Word of God", "Son of man", "Kingdom of heaven", "Spirit of God", "Thus saith the LORD", "children of Israel", "tabernacle of the congregation", "Lord of hosts", "In the beginning"];
+        for (var p in initial) {
+          await db.insert('constants', {'phrase': p, 'created_at': now});
+        }
       },
     );
   }
@@ -86,12 +87,13 @@ class DatabaseService {
     final count = Sqflite.firstIntValue(countResult) ?? 0;
 
     if (count == 0) {
-      debugPrint("Starting Bible import from JSON...");
+      debugPrint("IMPORT START: Loading Bible.json...");
       try {
         final String jsonString = await rootBundle.loadString('assets/Bible.json');
-        final List<dynamic> data = json.decode(jsonString);
+        final List<dynamic> data = await compute(jsonDecode, jsonString) as List<dynamic>;
 
         await db.transaction((txn) async {
+          final batch = txn.batch();
           for (var item in data) {
             String abbr = item['BN']?.toString() ?? '';
             int chapter = int.tryParse(item['CHAPTER']?.toString() ?? '0') ?? 0;
@@ -108,7 +110,7 @@ class DatabaseService {
               plainWords.add(clean);
             }
 
-            await txn.insert('bible', {
+            batch.insert('bible', {
               'book': item['BOOKS'],
               'abbr': abbr,
               'chapter': chapter,
@@ -118,194 +120,128 @@ class DatabaseService {
               'plain_text': plainWords.join(' '),
             });
           }
+          await batch.commit(noResult: true);
+          
+          final batchFts = txn.batch();
+          final bibleData = await txn.query('bible', columns: ['id', 'book', 'abbr', 'plain_text']);
+          for (var row in bibleData) {
+            batchFts.insert('bible_fts', {
+              'book': row['book'],
+              'abbr': row['abbr'],
+              'content': row['plain_text'],
+              'verse_id': row['id']
+            });
+          }
+          await batchFts.commit(noResult: true);
         });
-        debugPrint("Bible import complete.");
-      } catch (e) {
-        debugPrint("Error importing Bible: $e");
-      }
+      } catch (e) { debugPrint("IMPORT ERROR: $e"); }
     }
   }
 
-  Future<List<String>> getBooks() async {
+  Future<int> countSearchMatches(String query) async {
     final db = await database;
-    final maps = await db.rawQuery('SELECT DISTINCT book FROM bible ORDER BY id ASC');
-    return maps.map((m) => m['book'] as String).toList();
-  }
+    final cleanQuery = query.trim();
+    if (cleanQuery.isEmpty) return 0;
+    
+    final loc = BibleLogic.parseLocation(cleanQuery);
+    if (loc != null) return 1;
 
-  Future<String?> getBookNameFromAbbr(String abbr) async {
-    final db = await database;
-    final maps = await db.query('bible', columns: ['book'], where: 'abbr = ? COLLATE NOCASE', whereArgs: [abbr], limit: 1);
-    if (maps.isEmpty) return null;
-    return maps.first['book'] as String?;
-  }
-
-  Future<List<int>> getChapters(String book) async {
-    final db = await database;
-    final result = await db.rawQuery('SELECT DISTINCT chapter FROM bible WHERE book = ? ORDER BY chapter ASC', [book]);
-    return result.map((m) => (m['chapter'] ?? 0) as int).toList();
-  }
-
-  Future<List<BibleVerse>> getChapter(String book, int chapter) async {
-    final db = await database;
-    final maps = await db.query('bible', where: 'book = ? AND chapter = ?', whereArgs: [book, chapter], orderBy: 'verse ASC, id ASC');
-    return maps.map((m) => BibleVerse.fromJson(m)).toList();
-  }
-
-  Future<BibleVerse?> getRandomVerse() async {
-    final db = await database;
-    final maps = await db.rawQuery('SELECT * FROM bible ORDER BY RANDOM() LIMIT 1');
-    if (maps.isEmpty) return null;
-    final book = maps.first['book'] as String;
-    final chapter = maps.first['chapter'] as int;
-    final id = maps.first['id'] as int;
-    return getChapter(book, chapter).then((list) => list.firstWhere((v) => v.id == id));
-  }
-
-  Future<BibleVerse?> _getVerse(String abbr, int ch, int v) async {
-    final db = await database;
-    final res = await db.query('bible',
-      where: 'abbr = ? COLLATE NOCASE AND chapter = ? AND verse = ?',
-      whereArgs: [abbr, ch, v],
-      limit: 1
-    );
-    if (res.isEmpty) return null;
-    return BibleVerse.fromJson(res.first);
+    try {
+      final ftsSafeQuery = cleanQuery.replaceAll(RegExp(r'[.,;:!?¶\(\)\[\]]'), ' ').trim();
+      if (ftsSafeQuery.isEmpty) return 0;
+      final ftsQuery = ftsSafeQuery.contains(' ') ? '"$ftsSafeQuery"' : ftsSafeQuery;
+      final results = await db.rawQuery('SELECT COUNT(*) as count FROM bible_fts WHERE content MATCH ?', [ftsQuery]);
+      return Sqflite.firstIntValue(results) ?? 0;
+    } catch (e) { return 0; }
   }
 
   Future<List<BibleMatch>> search(String query) async {
     final db = await database;
-    List<BibleMatch> results = [];
-    final Set<String> seenLocations = {};
-
-    void addResult(BibleMatch match) {
-      if (!seenLocations.contains(match.location)) {
-        results.add(match);
-        seenLocations.add(match.location);
-      }
-    }
-
-    // 1. Location and Range parsing
-    if (query.contains('_')) {
-      final parts = query.split('_');
-      if (parts.length == 2) {
-        final sLoc = BibleLogic.parseLocation(parts[0]);
-        final eLoc = BibleLogic.parseLocation(parts[1]);
-        if (sLoc != null && eLoc != null) {
-          final sV = await _getVerse(sLoc.bookAbbr, sLoc.chapter, sLoc.verse);
-          final eV = await _getVerse(eLoc.bookAbbr, eLoc.chapter, eLoc.verse);
-          if (sV != null && eV != null) {
-            final maps = await db.query('bible', where: 'id >= ? AND id <= ?', whereArgs: [sV.id, eV.id], orderBy: 'id ASC');
-            List<BibleVerse> verses = maps.map((m) => BibleVerse.fromJson(m)).toList();
-            if (verses.isNotEmpty) {
-              StringBuffer sb = StringBuffer();
-              for (int i = 0; i < verses.length; i++) {
-                int start = (i == 0) ? sLoc.startWord : 1;
-                int end = (i == verses.length - 1) ? (eLoc.endWord == 0 ? verses[i].wordCount : eLoc.endWord) : verses[i].wordCount;
-                if (sb.isNotEmpty) sb.write(' ');
-                sb.write(verses[i].styledWords.sublist(start - 1, end).map((w) => w.text).join(' '));
-              }
-              results.add(BibleMatch(phrase: sb.toString(), location: query.trim(), verse: sV));
-              return results;
-            }
-          }
-        }
-      }
-    }
-
-    final loc = BibleLogic.parseLocation(query);
-    if (loc != null) {
-      final locMaps = await db.query('bible',
-        where: 'abbr = ? COLLATE NOCASE AND chapter = ? AND (verse = ? OR ? = 0)',
-        whereArgs: [loc.bookAbbr, loc.chapter, loc.verse, loc.verse]
-      );
-      for (var m in locMaps) {
-        final verse = BibleVerse.fromJson(m);
-        int start = loc.startWord;
-        int end = loc.endWord;
-        if (start == 1 && end == 0) end = verse.wordCount;
-        int effectiveEnd = (end > 0 && end <= verse.wordCount) ? end : start;
-        final phrase = verse.styledWords.sublist(start - 1, effectiveEnd).map((w) => w.text).join(' ');
-        addResult(BibleMatch(phrase: phrase, location: BibleLogic.formatLocation(verse.bookAbbreviation, verse.chapter, verse.verse, start, effectiveEnd), verse: verse));
-      }
-      if (results.isNotEmpty) return results;
-    }
-
-    // 2. Keyword/Phrase Search
     final cleanQuery = query.trim();
     if (cleanQuery.isEmpty) return [];
+    final loc = BibleLogic.parseLocation(cleanQuery);
+    if (loc != null) return _searchByLocation(loc);
 
-    // First search single verses
-    final singleVerseMaps = await db.query('bible', where: 'plain_text LIKE ?', whereArgs: ['%$cleanQuery%'], limit: 1000);
-    for (var m in singleVerseMaps) {
+    try {
+      final ftsSafeQuery = cleanQuery.replaceAll(RegExp(r'[.,;:!?¶\(\)\[\]]'), ' ').trim();
+      if (ftsSafeQuery.isEmpty) return [];
+      final ftsQuery = ftsSafeQuery.contains(' ') ? '"$ftsSafeQuery"' : ftsSafeQuery;
+      final results = await db.rawQuery('SELECT b.* FROM bible b JOIN bible_fts f ON b.id = f.verse_id WHERE f.content MATCH ? ORDER BY b.id ASC', [ftsQuery]);
+      final queryWords = ftsSafeQuery.toLowerCase().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
+
+      return results.map((m) {
+        final verse = BibleVerse.fromJson(m);
+        final words = verse.styledWords.map((w) => w.text.toLowerCase().replaceAll(RegExp(r'[.,;:!?¶\(\)\[\]]'), '')).toList();
+        int startWord = 1; int endWord = verse.wordCount;
+        for (int i = 0; i <= words.length - queryWords.length; i++) {
+          bool found = true;
+          for (int j = 0; j < queryWords.length; j++) { 
+            if (i+j >= words.length || words[i+j] != queryWords[j]) { found = false; break; } 
+          }
+          if (found) { startWord = i + 1; endWord = i + queryWords.length; break; }
+        }
+        // Capture EXACT text from verse including punctuation
+        final exactText = verse.styledWords.sublist(startWord - 1, endWord).map((w) => w.text).join(' ');
+        return BibleMatch(phrase: exactText, location: BibleLogic.formatLocation(verse.bookAbbreviation, verse.chapter, verse.verse, startWord, endWord), verse: verse, startWord: startWord, endWord: endWord);
+      }).toList();
+    } catch (e) { return []; }
+  }
+
+  Future<List<BibleMatch>> _searchByLocation(BibleLocation loc) async {
+    final db = await database;
+    final locMaps = await db.query('bible', where: 'abbr = ? COLLATE NOCASE AND chapter = ? AND (verse = ? OR ? = 0)', whereArgs: [loc.bookAbbr, loc.chapter, loc.verse, loc.verse]);
+    List<BibleMatch> results = [];
+    for (var m in locMaps) {
       final verse = BibleVerse.fromJson(m);
-      final qParts = cleanQuery.toLowerCase().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
-      final words = verse.styledWords.map((w) => w.text.toLowerCase()).toList();
-
-      for (int i = 0; i <= words.length - qParts.length; i++) {
-        bool match = true;
-        for (int j = 0; j < qParts.length; j++) {
-          if (!words[i+j].contains(qParts[j])) { match = false; break; }
-        }
-        if (match) {
-          int sIdx = i + 1;
-          int eIdx = i + qParts.length;
-          addResult(BibleMatch(
-            phrase: verse.styledWords.sublist(sIdx - 1, eIdx).map((w) => w.text).join(' '),
-            location: BibleLogic.formatLocation(verse.bookAbbreviation, verse.chapter, verse.verse, sIdx, eIdx),
-            verse: verse
-          ));
-          i += qParts.length - 1; // Move past this occurrence to find next one
-        }
-      }
+      int start = loc.startWord; int end = loc.endWord;
+      if (start == 1 && end == 0) end = verse.wordCount;
+      int effEnd = (end > 0 && end <= verse.wordCount) ? end : start;
+      results.add(BibleMatch(phrase: verse.styledWords.sublist(start - 1, effEnd).map((w) => w.text).join(' '), location: BibleLogic.formatLocation(verse.bookAbbreviation, verse.chapter, verse.verse, start, effEnd), verse: verse, startWord: start, endWord: effEnd));
     }
+    return results;
+  }
 
-    // If phrase search, handle cross-verse matches
-    if (cleanQuery.contains(' ')) {
-      final qParts = cleanQuery.toLowerCase().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
-      final firstPart = qParts.first;
-      final candidates = await db.query('bible', where: 'plain_text LIKE ?', whereArgs: ['%$firstPart%'], limit: 200);
+  Future<List<WtotagResult>> wtotag(String query, {bool isBefore = true, int n = 3}) async {
+    final matches = await search(query);
+    return _wtotagInternal(matches, isBefore: isBefore, n: n);
+  }
 
-      for (var m in candidates) {
-        final startV = BibleVerse.fromJson(m);
-        for (int i = 0; i < startV.styledWords.length; i++) {
-          if (startV.styledWords[i].text.toLowerCase().contains(firstPart)) {
-            List<String> foundWords = [];
-            bool fullMatch = true;
-            int currentVId = startV.id;
-            int vOffset = 0;
-            int wIdx = i;
-            String startLoc = ""; String endLoc = "";
-
-            for (int q = 0; q < qParts.length; q++) {
-              final vRes = await db.query('bible', where: 'id = ?', whereArgs: [currentVId + vOffset], limit: 1);
-              if (vRes.isEmpty) { fullMatch = false; break; }
-              final v = BibleVerse.fromJson(vRes.first);
-
-              if (wIdx >= v.styledWords.length) {
-                vOffset++; wIdx = 0;
-                final nVRes = await db.query('bible', where: 'id = ?', whereArgs: [currentVId + vOffset], limit: 1);
-                if (nVRes.isEmpty) { fullMatch = false; break; }
-                final nextV = BibleVerse.fromJson(nVRes.first);
-                if (!nextV.styledWords[wIdx].text.toLowerCase().contains(qParts[q])) { fullMatch = false; break; }
-                foundWords.add(nextV.styledWords[wIdx].text);
-                if (q == 0) startLoc = BibleLogic.formatLocation(nextV.bookAbbreviation, nextV.chapter, nextV.verse, wIdx + 1, wIdx + 1);
-                endLoc = BibleLogic.formatLocation(nextV.bookAbbreviation, nextV.chapter, nextV.verse, wIdx + 1, wIdx + 1);
-                wIdx++;
-              } else {
-                if (!v.styledWords[wIdx].text.toLowerCase().contains(qParts[q])) { fullMatch = false; break; }
-                foundWords.add(v.styledWords[wIdx].text);
-                if (q == 0) startLoc = BibleLogic.formatLocation(v.bookAbbreviation, v.chapter, v.verse, wIdx + 1, wIdx + 1);
-                endLoc = BibleLogic.formatLocation(v.bookAbbreviation, v.chapter, v.verse, wIdx + 1, wIdx + 1);
-                wIdx++;
+  Future<List<WtotagResult>> _wtotagInternal(List<BibleMatch> matches, {bool isBefore = true, int n = 3}) async {
+    if (matches.isEmpty) return [];
+    final RegExp punct = RegExp(r'[.,;:!?¶\(\)\[\]]');
+    List<WtotagResult> results = [];
+    for (var match in matches) {
+      final verse = match.verse;
+      final loc = BibleLogic.parseLocation(match.location);
+      if (loc == null) continue;
+      for (int currentN = n; currentN >= 2; currentN--) {
+        if (isBefore) {
+          int startIdx = loc.startWord - currentN;
+          if (startIdx >= 1) {
+            int actualStart = startIdx;
+            for (int i = loc.startWord - 1; i >= startIdx; i--) { if (verse.styledWords[i - 1].text.contains(punct)) { actualStart = i + 1; break; } }
+            if (loc.startWord - actualStart >= 2) {
+              String phrase = verse.styledWords.sublist(actualStart - 1, loc.startWord - 1).map((w) => w.text).join(' ');
+              String location = BibleLogic.formatLocation(verse.bookAbbreviation, verse.chapter, verse.verse, actualStart, loc.startWord - 1);
+              final contextMatches = await search(phrase);
+              if (contextMatches.length > 1) {
+                results.add(WtotagResult(originalMatch: match, contextMatch: BibleMatch(phrase: phrase, location: location, verse: verse, startWord: actualStart, endWord: loc.startWord - 1), contextMatches: contextMatches, nValue: loc.startWord - actualStart, isBefore: isBefore));
               }
             }
-
-            if (fullMatch) {
-              String rangeLoc = startLoc.split(':').take(2).join(':') == endLoc.split(':').take(2).join(':')
-                ? "${startLoc.split(':').take(3).join(':')}-${endLoc.split(':').last}"
-                : "${startLoc}_$endLoc";
-              addResult(BibleMatch(phrase: foundWords.join(' '), location: rangeLoc, verse: startV));
-              i += qParts.length - 1;
+          }
+        } else {
+          int startIdxAfter = loc.endWord == 0 ? loc.startWord : loc.endWord;
+          int endIdx = startIdxAfter + currentN;
+          if (endIdx <= verse.wordCount) {
+            int actualEnd = endIdx;
+            for (int i = startIdxAfter + 1; i <= endIdx; i++) { if (verse.styledWords[i - 1].text.contains(punct)) { actualEnd = i; break; } }
+            if (actualEnd - startIdxAfter >= 2) {
+              String phrase = verse.styledWords.sublist(startIdxAfter, actualEnd).map((w) => w.text).join(' ');
+              String location = BibleLogic.formatLocation(verse.bookAbbreviation, verse.chapter, verse.verse, startIdxAfter + 1, actualEnd);
+              final contextMatches = await search(phrase);
+              if (contextMatches.length > 1) {
+                results.add(WtotagResult(originalMatch: match, contextMatch: BibleMatch(phrase: phrase, location: location, verse: verse, startWord: startIdxAfter + 1, endWord: actualEnd), contextMatches: contextMatches, nValue: actualEnd - startIdxAfter, isBefore: isBefore));
+              }
             }
           }
         }
@@ -314,20 +250,159 @@ class DatabaseService {
     return results;
   }
 
-  // --- DICTIONARY, NOTES & PATHS ---
-  Future<int> addDictionaryEntry(String term, String def, String loc) async => (await database).insert('dictionary', {'term': term, 'definition': def, 'location': loc, 'created_at': DateTime.now().toIso8601String()}, conflictAlgorithm: ConflictAlgorithm.replace);
-  Future<List<Map<String, dynamic>>> getDictionary() async => (await database).query('dictionary', orderBy: 'term ASC');
-  Future<int> saveNote({required String title, required String content, required String location}) async => (await database).insert('notes', {'title': title, 'content': content, 'location': location, 'created_at': DateTime.now().toIso8601String()});
+  Future<List<VectorSpaceRow>> getVectorSpaceGrid(String query, {int n = 3, bool includeBefore = true, bool includeAfter = true, int? limit, int? offset}) async {
+    final Map<String, VectorSpaceRow> matrix = {};
+    var baseMatches = await search(query);
+
+    if (offset != null && offset < baseMatches.length) {
+      baseMatches = baseMatches.skip(offset).toList();
+    }
+    if (limit != null && limit < baseMatches.length) {
+      baseMatches = baseMatches.take(limit).toList();
+    }
+
+    for (var m in baseMatches) { 
+      matrix[m.location] = VectorSpaceRow(word: m.phrase, location: m.location); 
+    }
+    final RegExp punct = RegExp(r'[.,;:!?¶\(\)\[\]]');
+
+    Future<void> processWitnesses(List<WtotagResult> witnesses, bool isBefore) async {
+      for (var w in witnesses) {
+        final limitedMatches = w.contextMatches.take(100); 
+        for (var m in limitedMatches) {
+          final loc = BibleLogic.parseLocation(m.location); if (loc == null) continue;
+          if (isBefore) {
+            int targetStart = loc.endWord + 1;
+            if (targetStart <= m.verse.wordCount) {
+              int targetEnd = targetStart;
+              for (int i = targetStart; i <= m.verse.wordCount; i++) { targetEnd = i; if (m.verse.styledWords[i - 1].text.contains(punct)) break; }
+              final key = w.originalMatch.location;
+              matrix.putIfAbsent(key, () => VectorSpaceRow(word: w.originalMatch.phrase, location: key));
+              matrix[key]!.witnessesBefore.add(m);
+              matrix[key]!.spiritualsBefore.add(BibleMatch(phrase: m.verse.styledWords.sublist(targetStart - 1, targetEnd).map((w) => w.text).join(' '), location: BibleLogic.formatLocation(m.verse.bookAbbreviation, m.verse.chapter, m.verse.verse, targetStart, targetEnd), verse: m.verse, startWord: targetStart, endWord: targetEnd));
+            }
+          } else {
+            int targetEnd = loc.startWord - 1;
+            if (targetEnd >= 1) {
+              int targetStart = 1;
+              for (int i = targetEnd; i >= 1; i--) { if (m.verse.styledWords[i - 1].text.contains(punct)) { targetStart = i + 1; break; } targetStart = i; }
+              final key = w.originalMatch.location;
+              matrix.putIfAbsent(key, () => VectorSpaceRow(word: w.originalMatch.phrase, location: key));
+              matrix[key]!.witnessesAfter.add(m);
+              matrix[key]!.spiritualsAfter.add(BibleMatch(phrase: m.verse.styledWords.sublist(targetStart - 1, targetEnd).map((w) => w.text).join(' '), location: BibleLogic.formatLocation(m.verse.bookAbbreviation, m.verse.chapter, m.verse.verse, targetStart, targetEnd), verse: m.verse, startWord: targetStart, endWord: targetEnd));
+            }
+          }
+        }
+      }
+    }
+
+    if (includeBefore) {
+      final beforeWitnesses = await _wtotagInternal(baseMatches, isBefore: true, n: n);
+      await processWitnesses(beforeWitnesses, true);
+    }
+    if (includeAfter) {
+      final afterWitnesses = await _wtotagInternal(baseMatches, isBefore: false, n: n);
+      await processWitnesses(afterWitnesses, false);
+    }
+
+    final results = matrix.values.toList();
+    results.sort((a,b) => a.bookOrder.compareTo(b.bookOrder));
+    return results;
+  }
+
+  Future<Map<String, String>> getContinuityMap() async {
+    try {
+      final String jsonString = await rootBundle.loadString('assets/CONTINUITY.json');
+      final List<dynamic> data = json.decode(jsonString);
+      return { for (var item in data) item['FunctionWord'].toString().toLowerCase() : item['Symbol'].toString() };
+    } catch (_) { return {}; }
+  }
+
+  Future<Map<String, String>> getParenthesesMap() async {
+    try {
+      final String jsonString = await rootBundle.loadString('assets/PARENTHESES.json');
+      final List<dynamic> data = json.decode(jsonString);
+      return { for (var item in data) item['AuxVerb'].toString().toLowerCase() : item['Symbol'].toString() };
+    } catch (_) { return {}; }
+  }
+
+  Future<List<BibleVerse>> getChapter(String book, int chapter) async {
+    final db = await database;
+    final maps = await db.query('bible', where: 'book = ? AND chapter = ?', whereArgs: [book, chapter], orderBy: 'verse ASC, id ASC');
+    return maps.map((m) => BibleVerse.fromJson(m)).toList();
+  }
+
+  Future<List<int>> getVerseNumbers(String book, int chapter) async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT verse FROM bible WHERE book = ? AND chapter = ? AND verse > 0 ORDER BY verse ASC', [book, chapter]);
+    return result.map((m) => (m['verse'] ?? 0) as int).toList();
+  }
+
+  Future<List<String>> getBooks() async {
+    final db = await database;
+    final maps = await db.rawQuery('SELECT DISTINCT book FROM bible ORDER BY id ASC');
+    return maps.map((m) => m['book'] as String).toList();
+  }
+
+  Future<List<int>> getChapters(String book) async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT DISTINCT chapter FROM bible WHERE book = ? ORDER BY chapter ASC', [book]);
+    return result.map((m) => (m['chapter'] ?? 0) as int).toList();
+  }
+
+  Future<BibleVerse?> getDailyVerse() async {
+    final db = await database;
+    final maps = await db.rawQuery('SELECT * FROM bible WHERE verse > 0 ORDER BY RANDOM() LIMIT 1');
+    if (maps.isEmpty) return null;
+    return BibleVerse.fromJson(maps.first);
+  }
+
+  Future<BibleVerse?> getSpecificVerse(String book, int chapter, int verse) async {
+    final db = await database;
+    final maps = await db.query('bible', where: 'book = ? AND chapter = ? AND verse = ?', whereArgs: [book, chapter, verse], limit: 1);
+    if (maps.isEmpty) return null;
+    return BibleVerse.fromJson(maps.first);
+  }
+
+  Future<List<String>> getConstants() async {
+    final db = await database;
+    final maps = await db.query('constants', orderBy: 'created_at DESC');
+    return maps.map((m) => m['phrase'] as String).toList();
+  }
+
+  Future<int> deleteConstant(String phrase) async {
+    final db = await database;
+    return await db.delete('constants', where: 'phrase = ?', whereArgs: [phrase]);
+  }
+
   Future<List<Map<String, dynamic>>> getNotes() async => (await database).query('notes', orderBy: 'created_at DESC');
-  Future<int> createStudyPath(String name, String desc) async => (await database).insert('study_paths', {'name': name, 'description': desc, 'created_at': DateTime.now().toIso8601String()});
-  Future<List<Map<String, dynamic>>> getStudyPaths() async => (await database).query('study_paths', orderBy: 'created_at DESC');
-  Future<void> addLocationToPath(int pathId, String location) async => (await database).insert('study_path_items', {'path_id': pathId, 'location': location, 'ordinal': 1});
-  Future<List<Map<String, dynamic>>> getPathItems(int pathId) async => (await database).query('study_path_items', where: 'path_id = ?', whereArgs: [pathId]);
 }
 
 class BibleMatch {
   final String phrase;
   final String location;
   final BibleVerse verse;
-  BibleMatch({required this.phrase, required this.location, required this.verse});
+  final int startWord;
+  final int endWord;
+  BibleMatch({required this.phrase, required this.location, required this.verse, required this.startWord, required this.endWord});
+}
+
+class WtotagResult {
+  final BibleMatch originalMatch;
+  final BibleMatch contextMatch;
+  final List<BibleMatch> contextMatches;
+  final int nValue;
+  final bool isBefore;
+  WtotagResult({required this.originalMatch, required this.contextMatch, required this.contextMatches, required this.nValue, required this.isBefore});
+}
+
+class VectorSpaceRow {
+  final String word;
+  final String location;
+  final int bookOrder;
+  List<BibleMatch> witnessesBefore = [];
+  List<BibleMatch> spiritualsBefore = [];
+  List<BibleMatch> witnessesAfter = [];
+  List<BibleMatch> spiritualsAfter = [];
+  VectorSpaceRow({required this.word, required this.location}) : bookOrder = BibleLogic.getBookOrder(location);
 }

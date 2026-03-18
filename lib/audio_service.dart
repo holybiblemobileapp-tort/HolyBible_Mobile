@@ -7,15 +7,23 @@ import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:flutter_tts/flutter_tts.dart';
 import 'bible_model.dart';
+
+enum AudioQuality { high, medium, low, systemTts }
 
 class AudioService {
   AudioPlayer? _player;
+  final FlutterTts _tts = FlutterTts();
   final _fragmentController = StreamController<String?>.broadcast();
   StreamSubscription? _posSub;
 
   List<AudioSyncWord> _currentWords = [];
   List<String> _chapterWordIds = [];
+  
+  // Track current word index for TTS sync
+  int _ttsWordIndex = 0;
+  bool _isTtsPlaying = false;
 
   bool _isAudioLoaded = false;
   bool _isDisposed = false;
@@ -23,10 +31,55 @@ class AudioService {
   bool _isError = false;
   bool _isEnabled = false;
   bool _isLoading = false;
+  
+  // Quality state
+  AudioQuality _quality = AudioQuality.high;
 
-  static const int _highlightLeadOffsetMs = 50;
+  static const int _highlightLeadOffsetMs = 30; 
 
-  AudioService();
+  AudioService() {
+    _initTts();
+  }
+
+  void _initTts() {
+    _tts.setLanguage("en-US");
+    _tts.setSpeechRate(0.5);
+    _tts.setVolume(1.0);
+    _tts.setPitch(1.0);
+
+    _tts.setProgressHandler((String text, int start, int end, String word) {
+      if (_quality == AudioQuality.systemTts && _isEnabled) {
+        // System TTS provides progress. We use this to trigger word-by-word highlights.
+        if (_ttsWordIndex < _chapterWordIds.length) {
+          final currentId = _chapterWordIds[_ttsWordIndex];
+          _fragmentController.add(currentId);
+          _ttsWordIndex++;
+        }
+      }
+    });
+
+    _tts.setStartHandler(() {
+      _isTtsPlaying = true;
+    });
+
+    _tts.setCompletionHandler(() {
+      _isTtsPlaying = false;
+      _ttsWordIndex = 0;
+      _fragmentController.add(null);
+    });
+
+    _tts.setCancelHandler(() {
+      _isTtsPlaying = false;
+      _ttsWordIndex = 0;
+      _fragmentController.add(null);
+    });
+  }
+
+  void setQuality(AudioQuality q) {
+    _quality = q;
+  }
+
+  bool get isSystemTts => _quality == AudioQuality.systemTts;
 
   Future<void> setEnabled(bool enabled) async {
     _isEnabled = enabled;
@@ -41,10 +94,8 @@ class AudioService {
     if (_player != null || _isDisposed) return;
     try {
       _player = AudioPlayer();
-
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.speech());
-
       _attachListener();
     } catch (e) {
       debugPrint("AUDIO: Failed to init player: $e");
@@ -54,6 +105,8 @@ class AudioService {
   void _stopAndRelease() {
     try {
       _player?.stop();
+      _tts.stop();
+      _isTtsPlaying = false;
     } catch (_) {}
     _isAudioLoaded = false;
     _currentKey = null;
@@ -65,7 +118,7 @@ class AudioService {
     if (_player == null) return;
 
     _posSub = _player!.positionStream.listen((pos) {
-      if (_isDisposed || !_isEnabled || _currentWords.isEmpty || !_isAudioLoaded || _isLoading) return;
+      if (_isDisposed || !_isEnabled || _currentWords.isEmpty || !_isAudioLoaded || _isLoading || _quality == AudioQuality.systemTts) return;
 
       try {
         final seconds = (pos.inMilliseconds + _highlightLeadOffsetMs) / 1000.0;
@@ -80,28 +133,41 @@ class AudioService {
         if (foundId != null && !_fragmentController.isClosed) {
           _fragmentController.add(foundId);
         }
-      } catch (e) {
-        // Guard against platform-specific position access errors
-      }
+      } catch (e) {}
     });
   }
 
-  bool get isAudioLoaded => _isAudioLoaded;
-  bool get isAudioLoading => _isEnabled && (_isLoading || (!_isAudioLoaded && _currentKey != null && !_isError));
+  bool get isAudioLoaded => _quality == AudioQuality.systemTts ? true : _isAudioLoaded;
+  bool get isAudioLoading => _isEnabled && _quality != AudioQuality.systemTts && (_isLoading || (!_isAudioLoaded && _currentKey != null && !_isError));
   bool get hasAudioError => _isError;
   Stream<String?> get currentFragmentIdStream => _fragmentController.stream.distinct();
-  Stream<PlayerState> get playerStateStream => _player?.playerStateStream ?? const Stream.empty();
+  
+  Stream<PlayerState> get playerStateStream {
+    if (_quality == AudioQuality.systemTts) {
+      // Create a dummy stream for TTS state mapping
+      return Stream.periodic(const Duration(milliseconds: 200), (_) {
+        return PlayerState(_isTtsPlaying, ProcessingState.ready);
+      });
+    }
+    return _player?.playerStateStream ?? const Stream.empty();
+  }
 
   Future<void> loadChapter(String bookAbbr, int chapter, List<BibleVerse> allVerses) async {
     if (_isDisposed || !_isEnabled || _isLoading) return;
-
+    
     final key = '$bookAbbr$chapter';
-    if (_currentKey == key && _isAudioLoaded) return;
+    _currentKey = key;
+    _chapterWordIds = _generateIDs(allVerses, bookAbbr, chapter);
+
+    if (_quality == AudioQuality.systemTts) {
+      _isAudioLoaded = true;
+      _currentWords = [];
+      return;
+    }
 
     _isLoading = true;
     _isAudioLoaded = false;
     _isError = false;
-    _currentKey = key;
 
     try {
       if (_player == null) await _initPlayer();
@@ -111,36 +177,20 @@ class AudioService {
         return;
       }
 
-      bool wasPlaying = _player?.playing ?? false;
+      if (_player?.playing == true) await _player?.pause();
+      await _player?.stop();
 
-      if (defaultTargetPlatform == TargetPlatform.windows) {
-        _posSub?.cancel();
-        await _player?.dispose();
-        _player = null;
-        await Future.delayed(const Duration(milliseconds: 200));
-        _player = AudioPlayer();
-        _attachListener();
-        await Future.delayed(const Duration(milliseconds: 200));
-      } else {
-        if (_player?.playing == true) await _player?.pause();
-        await _player?.stop();
-      }
-
-      // 1. Determine Paths (Local first, then fallback to Assets)
       final docDir = await getApplicationDocumentsDirectory();
       final localAudioFile = File(p.join(docDir.path, 'audio', '$key.ogg'));
       final localSyncFile = File(p.join(docDir.path, 'sync', '$key.json'));
 
-      // 2. Load Sync Data
       String syncContent;
       if (await localSyncFile.exists()) {
         syncContent = await localSyncFile.readAsString();
       } else {
-        // Fallback to internal assets for Preface/Genesis
         try {
           syncContent = await rootBundle.loadString('assets/sync/$key.json');
         } catch (e) {
-          debugPrint("AUDIO: Sync missing for $key locally and in assets");
           _isError = true;
           _isLoading = false;
           return;
@@ -148,36 +198,20 @@ class AudioService {
       }
 
       final dynamic decoded = json.decode(syncContent);
-      if (decoded is! List) throw Exception("Invalid sync format");
-
       _currentWords = decoded.map((w) => AudioSyncWord.fromJson(w as Map<String, dynamic>)).toList();
-      _chapterWordIds = _generateIDs(allVerses, bookAbbr, chapter);
 
-      // 3. Load Audio
       try {
         if (await localAudioFile.exists()) {
           await _player!.setFilePath(localAudioFile.path, preload: true).timeout(const Duration(seconds: 15));
         } else {
-          // Fallback to internal assets for Preface/Genesis
           await _player!.setAsset('assets/audio/$key.ogg', preload: true).timeout(const Duration(seconds: 15));
         }
-
-        if (_currentKey == key && _isEnabled) {
-          _isAudioLoaded = true;
-          debugPrint("AUDIO: $key loaded successfully.");
-
-          if (wasPlaying && !_isDisposed) {
-            await play();
-          }
-        }
+        _isAudioLoaded = true;
       } catch (e) {
-        debugPrint("AUDIO: Load failed for $key: $e");
         _isError = true;
       }
     } catch (e) {
-      debugPrint("AUDIO ERROR ($key): $e");
       _isError = true;
-      _isAudioLoaded = false;
     } finally {
       _isLoading = false;
     }
@@ -189,7 +223,16 @@ class AudioService {
     return list.expand((v) => v.styledWords.map((w) => '${v.id}:${w.index}')).toList();
   }
 
+  Future<void> speakVerses(List<BibleVerse> verses) async {
+    if (!_isEnabled) return;
+    _ttsWordIndex = 0;
+    // We clean the text slightly to help TTS with flow
+    final fullText = verses.map((v) => v.text.replaceAll('¶', '')).join(" ");
+    await _tts.speak(fullText);
+  }
+
   Future<void> seekToFragment(String fragmentId) async {
+    if (_quality == AudioQuality.systemTts) return;
     if (!_isAudioLoaded || _chapterWordIds.isEmpty || _isLoading || _player == null) return;
     final index = _chapterWordIds.indexOf(fragmentId);
     if (index != -1 && index < _currentWords.length) {
@@ -197,29 +240,26 @@ class AudioService {
       try {
         await _player!.seek(Duration(milliseconds: (startTime * 1000).toInt()));
         if (_player!.playing == false) await play();
-      } catch (e) {
-        debugPrint("AUDIO: Seek failed: $e");
-      }
+      } catch (e) {}
     }
   }
 
   Future<void> play() async {
-    if (_isEnabled && _isAudioLoaded && !_isLoading && _player != null) {
-      try {
-        await _player!.play();
-      } catch (e) {
-        debugPrint("AUDIO: Play failed: $e");
-      }
+    if (!_isEnabled) return;
+    if (_quality == AudioQuality.systemTts) {
+      // System TTS usually requires speak() to be called.
+    } else if (_isAudioLoaded && !_isLoading && _player != null) {
+      await _player!.play();
     }
   }
 
   Future<void> pause() async {
-    if (_player != null) {
-      try {
-        await _player!.pause();
-      } catch (e) {
-        debugPrint("AUDIO: Pause failed: $e");
-      }
+    if (_quality == AudioQuality.systemTts) {
+      await _tts.stop();
+      _isTtsPlaying = false;
+      _fragmentController.add(null);
+    } else if (_player != null) {
+      await _player!.pause();
     }
   }
 
@@ -227,6 +267,7 @@ class AudioService {
     _isDisposed = true;
     _posSub?.cancel();
     _player?.dispose();
+    _tts.stop();
     if (!_fragmentController.isClosed) {
       _fragmentController.close();
     }

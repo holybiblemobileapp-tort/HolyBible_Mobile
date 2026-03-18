@@ -1,0 +1,50 @@
+powershell
+Remove-Item -Recurse -Force .git
+
+powershell
+# 1. Initialize new repo
+git init
+
+# 2. Setup LFS (Large File Storage) for your heavy assets
+git lfs install
+git lfs track "assets/audio/*.ogg"
+git lfs track "models/*.onnx"
+git lfs track "assets/Bible.json"
+
+# 3. Add all files
+git add .
+
+# 4. Create the initial commit
+git commit -m "Initial commit: Holy Bible Mobile Reset"
+
+# 5. Link back to your GitHub repository
+# (Ensure the URL is correct)
+git remote add origin https://github.com/holybiblemobileapp-tort/HolyBible_Mobile
+
+# 6. Force push to overwrite the remote history with this new start
+git push -u origin main --force
+
+powershell
+# 1. Rename your local branch to 'main'
+git branch -M main
+
+# 2. Push to GitHub
+git push -u origin main --force
+
+AFTER CREATING REPOSITORY
+
+    git branch -M main
+    git push -u origin main --force
+    
+powershell
+git remote set-url origin https://github.com/holybiblemobileapp-tort/HolyBible_Mobile
+
+powershell
+# 1. Rename your local branch to match GitHub's 'main'
+git branch -M main
+
+# 2. Update the remote URL (just in case the .git suffix is needed)
+git remote set-url origin https://github.com/holybiblemobileapp-tort/HolyBible_Mobile.git
+
+# 3. Push everything to GitHub
+git push -u origin main --force

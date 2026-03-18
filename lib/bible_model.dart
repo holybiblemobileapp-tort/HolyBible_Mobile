@@ -38,11 +38,9 @@ class BibleVerse {
   String get text => styledWords.map((w) => w.text).join(' ');
 
   factory BibleVerse.fromJson(Map<String, dynamic> json) {
-    // Handle both Database (lowercase) and JSON Asset (UPPERCASE) keys
     int count = int.tryParse((json['WORDCOUNT'] ?? json['word_count'])?.toString() ?? '0') ?? 0;
     List<BibleWord> words = [];
     
-    // If it's from DB, we might have words_data as a JSON string
     if (json['words_data'] != null) {
       List<dynamic> data = jsonDecode(json['words_data']);
       for (int i = 0; i < data.length; i++) {
@@ -117,13 +115,28 @@ class DictionaryEntry {
   final String definition;
   final String location;
   final String createdAt;
+  final int n;
+  final String place;
+  final String finding; // "Automated Finding" or "Manual Finding"
 
-  DictionaryEntry({this.id, required this.term, required this.definition, required this.location, required this.createdAt});
+  DictionaryEntry({
+    this.id, 
+    required this.term, 
+    required this.definition, 
+    required this.location, 
+    required this.createdAt,
+    this.n = 0,
+    this.place = '',
+    this.finding = 'Manual Finding',
+  });
 
   Map<String, dynamic> toMap() => {
     'term': term,
     'definition': definition,
     'location': location,
     'created_at': createdAt,
+    'n': n,
+    'place': place,
+    'finding': finding,
   };
 }
