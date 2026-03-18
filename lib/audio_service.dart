@@ -21,7 +21,6 @@ class AudioService {
   List<AudioSyncWord> _currentWords = [];
   List<String> _chapterWordIds = [];
   
-  // Track current word index for TTS sync
   int _ttsWordIndex = 0;
   bool _isTtsPlaying = false;
 
@@ -32,7 +31,6 @@ class AudioService {
   bool _isEnabled = false;
   bool _isLoading = false;
   
-  // Quality state
   AudioQuality _quality = AudioQuality.high;
 
   static const int _highlightLeadOffsetMs = 30; 
@@ -47,9 +45,9 @@ class AudioService {
     _tts.setVolume(1.0);
     _tts.setPitch(1.0);
 
+    // FIX: Capturing real-time progress for Google TTS highlight sync
     _tts.setProgressHandler((String text, int start, int end, String word) {
-      if (_quality == AudioQuality.systemTts && _isEnabled) {
-        // System TTS provides progress. We use this to trigger word-by-word highlights.
+      if (_isEnabled) {
         if (_ttsWordIndex < _chapterWordIds.length) {
           final currentId = _chapterWordIds[_ttsWordIndex];
           _fragmentController.add(currentId);
@@ -143,8 +141,7 @@ class AudioService {
   Stream<String?> get currentFragmentIdStream => _fragmentController.stream.distinct();
   
   Stream<PlayerState> get playerStateStream {
-    if (_quality == AudioQuality.systemTts) {
-      // Create a dummy stream for TTS state mapping
+    if (_isTtsPlaying || _quality == AudioQuality.systemTts) {
       return Stream.periodic(const Duration(milliseconds: 200), (_) {
         return PlayerState(_isTtsPlaying, ProcessingState.ready);
       });
@@ -159,7 +156,12 @@ class AudioService {
     _currentKey = key;
     _chapterWordIds = _generateIDs(allVerses, bookAbbr, chapter);
 
-    if (_quality == AudioQuality.systemTts) {
+    // Hybrid Check: Use Piper if file exists, otherwise Google TTS
+    final docDir = await getApplicationDocumentsDirectory();
+    final localAudioFile = File(p.join(docDir.path, 'audio', '$key.ogg'));
+    
+    if (_quality == AudioQuality.systemTts || !await localAudioFile.exists()) {
+      // Switch to TTS mode
       _isAudioLoaded = true;
       _currentWords = [];
       return;
@@ -180,8 +182,6 @@ class AudioService {
       if (_player?.playing == true) await _player?.pause();
       await _player?.stop();
 
-      final docDir = await getApplicationDocumentsDirectory();
-      final localAudioFile = File(p.join(docDir.path, 'audio', '$key.ogg'));
       final localSyncFile = File(p.join(docDir.path, 'sync', '$key.json'));
 
       String syncContent;
@@ -191,7 +191,8 @@ class AudioService {
         try {
           syncContent = await rootBundle.loadString('assets/sync/$key.json');
         } catch (e) {
-          _isError = true;
+          // If no sync file, we can't do precise highlights, so fallback to generic TTS mode
+          _isAudioLoaded = true;
           _isLoading = false;
           return;
         }
@@ -200,16 +201,8 @@ class AudioService {
       final dynamic decoded = json.decode(syncContent);
       _currentWords = decoded.map((w) => AudioSyncWord.fromJson(w as Map<String, dynamic>)).toList();
 
-      try {
-        if (await localAudioFile.exists()) {
-          await _player!.setFilePath(localAudioFile.path, preload: true).timeout(const Duration(seconds: 15));
-        } else {
-          await _player!.setAsset('assets/audio/$key.ogg', preload: true).timeout(const Duration(seconds: 15));
-        }
-        _isAudioLoaded = true;
-      } catch (e) {
-        _isError = true;
-      }
+      await _player!.setFilePath(localAudioFile.path, preload: true).timeout(const Duration(seconds: 15));
+      _isAudioLoaded = true;
     } catch (e) {
       _isError = true;
     } finally {
@@ -226,13 +219,12 @@ class AudioService {
   Future<void> speakVerses(List<BibleVerse> verses) async {
     if (!_isEnabled) return;
     _ttsWordIndex = 0;
-    // We clean the text slightly to help TTS with flow
     final fullText = verses.map((v) => v.text.replaceAll('¶', '')).join(" ");
     await _tts.speak(fullText);
   }
 
   Future<void> seekToFragment(String fragmentId) async {
-    if (_quality == AudioQuality.systemTts) return;
+    if (_quality == AudioQuality.systemTts || _isTtsPlaying) return;
     if (!_isAudioLoaded || _chapterWordIds.isEmpty || _isLoading || _player == null) return;
     final index = _chapterWordIds.indexOf(fragmentId);
     if (index != -1 && index < _currentWords.length) {
@@ -246,19 +238,16 @@ class AudioService {
 
   Future<void> play() async {
     if (!_isEnabled) return;
-    if (_quality == AudioQuality.systemTts) {
-      // System TTS usually requires speak() to be called.
-    } else if (_isAudioLoaded && !_isLoading && _player != null) {
+    if (_isAudioLoaded && !_isLoading && _player != null) {
       await _player!.play();
     }
   }
 
   Future<void> pause() async {
-    if (_quality == AudioQuality.systemTts) {
-      await _tts.stop();
-      _isTtsPlaying = false;
-      _fragmentController.add(null);
-    } else if (_player != null) {
+    await _tts.stop();
+    _isTtsPlaying = false;
+    _fragmentController.add(null);
+    if (_player != null) {
       await _player!.pause();
     }
   }

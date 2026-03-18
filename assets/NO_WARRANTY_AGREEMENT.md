@@ -1,30 +1,8 @@
-# NO-WARRANTY AGREEMENT
+# No-Warranty Agreement
 
-**App Name:** Authorized King James Version 1611 Pure Cambridge Edition (PCE)  
-**Authors:** Carrille Dione and Charles Eyum Sama  
-**Contact:** holybiblemobileapp@gmail.com
+The software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
 
-By installing and using this application ("the App"), you acknowledge and agree to the following terms:
-
-### 1. DISCLAIMER OF WARRANTIES
-THE APP IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. 
-
-THE AUTHORS MAKE NO WARRANTY THAT:
-- THE APP WILL MEET YOUR REQUIREMENTS.
-- THE APP WILL BE UNINTERRUPTED, TIMELY, SECURE, OR ERROR-FREE.
-- THE RESULTS THAT MAY BE OBTAINED FROM THE USE OF THE APP WILL BE ACCURATE OR RELIABLE.
-- THE QUALITY OF ANY PRODUCTS, SERVICES, INFORMATION, OR OTHER MATERIAL PURCHASED OR OBTAINED BY YOU THROUGH THE APP WILL MEET YOUR EXPECTATIONS.
-
-### 2. LIMITATION OF LIABILITY
-IN NO EVENT SHALL THE AUTHORS (CARRILLE DIONE AND CHARLES EYUM SAMA) BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE APP OR THE USE OR OTHER DEALINGS IN THE APP. 
-
-THIS INCLUDES, BUT IS NOT LIMITED TO, ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR EXEMPLARY DAMAGES, INCLUDING DAMAGES FOR LOSS OF PROFITS, GOODWILL, USE, DATA, OR OTHER INTANGIBLE LOSSES (EVEN IF THE AUTHORS HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES).
-
-### 3. ASSUMPTION OF RISK
-ANY MATERIAL DOWNLOADED OR OTHERWISE OBTAINED THROUGH THE USE OF THE APP IS ACCESSED AT YOUR OWN DISCRETION AND RISK. YOU WILL BE SOLELY RESPONSIBLE FOR ANY DAMAGE TO YOUR DEVICE OR LOSS OF DATA THAT RESULTS FROM THE DOWNLOAD OR USE OF ANY SUCH MATERIAL.
-
-### 4. ACCEPTANCE
-BY INSTALLING, COPYING, OR OTHERWISE USING THE APP, YOU AGREE TO BE BOUND BY THE TERMS OF THIS AGREEMENT. IF YOU DO NOT AGREE TO THESE TERMS, DO NOT INSTALL OR USE THE APP.
-
----
-*Last Updated: May 2024*
+By using this application, you acknowledge that:
+1. The mathematical transformations (MathKJVP, MathKJVS, MathKJVT) are pedagogical tools and do not replace the original text of the Authorized King James Version.
+2. The AI assistant (Tortpotlord) and other digital study features are provided for educational purposes.
+3. The developers are not responsible for any data loss or hardware issues arising from the use of this software.

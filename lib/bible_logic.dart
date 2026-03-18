@@ -7,7 +7,6 @@ class MathPart {
   final bool isRed;
   final bool isItalic;
   final bool isParenthesis;
-  // New: specifically track if this part was created by the 'of' replacement logic
   final bool isOfReplacement;
 
   MathPart(this.text, {
@@ -29,9 +28,6 @@ class MathWord {
 class BibleLogic {
   static final Map<String, List<MathWord>> _mathCache = {};
   static const int _maxCacheSize = 300;
-  static Map<String, String>? _normalizedParenthesesMap;
-  static List<String>? _sortedKeys;
-  static final Map<String, RegExp> _regexCache = {};
 
   static const Map<String, int> _bookOrderMap = {
     'Pre': 0, 'Gen': 1, 'Exo': 2, 'Lev': 3, 'Num': 4, 'Deu': 5, 'Jos': 6, 'Jud': 7, 'Rut': 8, '1Sa': 9, '2Sa': 10, '1Ki': 11, '2Ki': 12, '1Ch': 13, '2Ch': 14, 'Ezr': 15, 'Neh': 16, 'Est': 17, 'Job': 18, 'Psa': 19, 'Pro': 20, 'Ecc': 21, 'Son': 22, 'Isa': 23, 'Jer': 24, 'Lam': 25, 'Eze': 26, 'Dan': 27, 'Hos': 28, 'Joe': 29, 'Amo': 30, 'Oba': 31, 'Jon': 32, 'Mic': 33, 'Nah': 34, 'Hab': 35, 'Zep': 36, 'Hag': 37, 'Zec': 38, 'Mal': 39, 'Mat': 40, 'Mar': 41, 'Luk': 42, 'Joh': 43, 'Act': 44, 'Rom': 45, '1Co': 46, '2Co': 47, 'Gal': 48, 'Eph': 49, 'Phi': 50, 'Col': 51, '1Th': 52, '2Th': 53, '1Ti': 54, '2Ti': 55, 'Tit': 56, 'Heb': 58, 'Jam': 59, '1Pe': 60, '2Pe': 61, '1Jo': 62, '2Jo': 63, '3Jo': 64, 'Rev': 66
@@ -41,8 +37,8 @@ class BibleLogic {
     final loc = parseLocation(location);
     if (loc == null) return 999;
     String abbr = loc.bookAbbr;
-    if (abbr == 'Phi' && loc.chapter == 0) return 57; // Philemon
-    if (abbr == 'Jud' && loc.chapter == 0) return 65; // Jude
+    if (abbr == 'Phi' && loc.chapter == 0) return 57;
+    if (abbr == 'Jud' && loc.chapter == 0) return 65;
     return _bookOrderMap[abbr] ?? 999;
   }
 
@@ -56,14 +52,7 @@ class BibleLogic {
     }
   }
 
-  static void clearCache() { _mathCache.clear(); _regexCache.clear(); }
-
-  static void prepareParentheses(Map<String, String>? parenthesesMap) {
-    if (parenthesesMap == null || parenthesesMap.isEmpty) return;
-    _normalizedParenthesesMap = parenthesesMap.map((k, v) => MapEntry(k.toLowerCase(), v));
-    _sortedKeys = _normalizedParenthesesMap!.keys.toList()..sort((a, b) => b.length.compareTo(a.length));
-    _regexCache.clear();
-  }
+  static void clearCache() { _mathCache.clear(); }
 
   static String formatLocation(String bookAbbr, int chapter, int verse, int start, int end, [int? totalWords]) {
     if (start == end && start != 0) return '$bookAbbr$chapter:$verse:$start';
@@ -73,8 +62,6 @@ class BibleLogic {
   }
 
   static String formatPhraseFunction(String phrase, String location) => '$phrase($location)';
-
-  static String formatInverseRelation(String phrase, List<String> locations) => locations.isEmpty ? phrase : '$phrase ↦ {${locations.join(', ')}}';
 
   static BibleLocation? parseLocation(String loc) {
     try {
@@ -94,16 +81,16 @@ class BibleLogic {
     if (_mathCache.containsKey(cacheKey)) return _mathCache[cacheKey]!;
 
     List<MathWord> result = [];
-    final bool isUnconstraint = style == BibleViewStyle.mathematicsUnconstraint;
-    final bool isKJV2 = style == BibleViewStyle.mathematics2;
-    final bool isKJV1 = style == BibleViewStyle.mathematics;
-
+    final bool isTertiary = style == BibleViewStyle.mathematicsUnconstraint;
+    final bool isSecondary = style == BibleViewStyle.mathematics2;
+    
     int openOfCount = 0;
+    final RegExp punctRegex = RegExp(r'[.,;:!?¶\(\)\[\]]');
 
     bool isFunctionWord(int index) {
       if (index < 0 || index >= verse.styledWords.length) return false;
       final w = verse.styledWords[index];
-      final wordLower = w.text.toLowerCase().replaceAll(RegExp(r'[.,;:!?¶]'), '');
+      final wordLower = w.text.toLowerCase().replaceAll(punctRegex, '');
       return continuityMap.containsKey(wordLower);
     }
 
@@ -113,50 +100,44 @@ class BibleLogic {
       final String wordLower = rawText.toLowerCase().replaceAll(RegExp(r'[.,;:!?]'), '');
       
       String? symbol = continuityMap[wordLower];
-      
       bool hasPunctuation = bw.text.contains(RegExp(r'[.,;:!?]'));
       bool isStartOfVerse = i == 0;
       bool isOf = wordLower == 'of';
       
-      bool precededByPunctuation = false;
-      if (i > 0) {
-        precededByPunctuation = verse.styledWords[i-1].text.contains(RegExp(r'[.,;:!?]'));
-      }
+      bool precededByPunctuation = i > 0 && verse.styledWords[i-1].text.contains(RegExp(r'[.,;:!?]'));
 
-      bool shouldInhibitOf = !isUnconstraint && (isStartOfVerse || precededByPunctuation || hasPunctuation);
-      bool shouldInhibitOther = !isUnconstraint && (isStartOfVerse || hasPunctuation);
+      // Rules for "of" -> "()"
+      // Tertiary: ALL instances replaced
+      bool inhibitOf = !isTertiary && (isStartOfVerse || (precededByPunctuation && !isSecondary) || hasPunctuation);
+      
+      // Rules for FunctionWords
+      // Tertiary: ALL instances replaced
+      bool inhibitFunction = !isTertiary && (isStartOfVerse || hasPunctuation || (precededByPunctuation && !isSecondary));
 
       List<MathPart> parts = [];
       bool hideLeadingSpace = false;
 
-      if (isOf && !shouldInhibitOf) {
-        if (isUnconstraint && hasPunctuation) {
+      if (isOf && !inhibitOf) {
+        if (isTertiary && hasPunctuation) {
+          // Rule: "of" before punctuation becomes an empty ()
           parts.add(MathPart('()', isRed: true, isParenthesis: true, isOfReplacement: true));
           hideLeadingSpace = true;
         } else {
           parts.add(MathPart('(', isRed: true, isParenthesis: true, isOfReplacement: true));
           openOfCount++;
-          hideLeadingSpace = true; // Attachment logic: no space between word and parenthesis
+          hideLeadingSpace = true;
         }
-      } else if (symbol != null && !shouldInhibitOther) {
+      } else if (symbol != null && !inhibitFunction) {
         if (openOfCount > 0) {
           parts.add(MathPart(')' * openOfCount, isRed: true, isParenthesis: true, isOfReplacement: true));
           openOfCount = 0;
         }
 
         bool shouldReplace;
-        if (isUnconstraint) {
-          shouldReplace = true;
-        } else if (isKJV2) {
-          bool hasPrev = isFunctionWord(i - 1);
-          bool hasNext = isFunctionWord(i + 1);
-          if (!hasPrev && !hasNext) {
-            shouldReplace = true;
-          } else if (hasPrev && !isFunctionWord(i - 2)) {
-            shouldReplace = true;
-          } else {
-            shouldReplace = false;
-          }
+        if (isTertiary) {
+          shouldReplace = true; // Tertiary: Replace ALL
+        } else if (isSecondary) {
+          shouldReplace = !isFunctionWord(i + 1) || isFunctionWord(i - 1);
         } else {
           shouldReplace = !isFunctionWord(i - 1);
         }
@@ -167,7 +148,6 @@ class BibleLogic {
           parts.add(MathPart(bw.text, isItalic: bw.isItalic));
         }
       } else {
-        // Original text part
         parts.add(MathPart(bw.text, isItalic: bw.isItalic, isParenthesis: bw.text.contains(RegExp(r'[\(\)]'))));
       }
 

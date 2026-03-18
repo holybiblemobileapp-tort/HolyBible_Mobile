@@ -8,6 +8,35 @@ import 'package:path/path.dart';
 import 'bible_model.dart';
 import 'bible_logic.dart';
 
+class BibleMatch {
+  final String phrase;
+  final String location;
+  final BibleVerse verse;
+  final int startWord;
+  final int endWord;
+  BibleMatch({required this.phrase, required this.location, required this.verse, required this.startWord, required this.endWord});
+}
+
+class WtotagResult {
+  final BibleMatch originalMatch;
+  final BibleMatch contextMatch;
+  final List<BibleMatch> contextMatches;
+  final int nValue;
+  final bool isBefore;
+  WtotagResult({required this.originalMatch, required this.contextMatch, required this.contextMatches, required this.nValue, required this.isBefore});
+}
+
+class VectorSpaceRow {
+  final String word;
+  final String location;
+  final int bookOrder;
+  List<BibleMatch> witnessesBefore = [];
+  List<BibleMatch> spiritualsBefore = [];
+  List<BibleMatch> witnessesAfter = [];
+  List<BibleMatch> spiritualsAfter = [];
+  VectorSpaceRow({required this.word, required this.location}) : bookOrder = BibleLogic.getBookOrder(location);
+}
+
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   factory DatabaseService() => _instance;
@@ -32,7 +61,30 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('''
+            CREATE TABLE library (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              book_title TEXT,
+              chapter_title TEXT,
+              chapter_index INTEGER,
+              content TEXT,
+              source_vectors TEXT,
+              created_at TEXT
+            )
+          ''');
+          await db.execute('''
+            CREATE VIRTUAL TABLE library_fts USING fts5(
+              book_title,
+              chapter_title,
+              content,
+              tokenize = "unicode61"
+            )
+          ''');
+        }
+      },
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE bible (
@@ -64,6 +116,17 @@ class DatabaseService {
           )
         ''');
         await db.execute('''
+          CREATE TABLE library (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_title TEXT,
+            chapter_title TEXT,
+            chapter_index INTEGER,
+            content TEXT,
+            source_vectors TEXT,
+            created_at TEXT
+          )
+        ''');
+        await db.execute('''
           CREATE TABLE notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
@@ -72,11 +135,6 @@ class DatabaseService {
             created_at TEXT
           )
         ''');
-        final now = DateTime.now().toIso8601String();
-        final initial = ["Holy Mountain", "Word of God", "Son of man", "Kingdom of heaven", "Spirit of God", "Thus saith the LORD", "children of Israel", "tabernacle of the congregation", "Lord of hosts", "In the beginning"];
-        for (var p in initial) {
-          await db.insert('constants', {'phrase': p, 'created_at': now});
-        }
       },
     );
   }
@@ -143,6 +201,15 @@ class DatabaseService {
     final cleanQuery = query.trim();
     if (cleanQuery.isEmpty) return 0;
     
+    if (cleanQuery.contains(',')) {
+      final parts = cleanQuery.split(',');
+      int total = 0;
+      for (var p in parts) {
+        if (BibleLogic.parseLocation(p) != null) total++;
+      }
+      if (total > 0) return total;
+    }
+
     final loc = BibleLogic.parseLocation(cleanQuery);
     if (loc != null) return 1;
 
@@ -159,6 +226,20 @@ class DatabaseService {
     final db = await database;
     final cleanQuery = query.trim();
     if (cleanQuery.isEmpty) return [];
+
+    if (cleanQuery.contains(',')) {
+      final parts = cleanQuery.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
+      List<BibleMatch> allLocs = [];
+      for (var p in parts) {
+        final loc = BibleLogic.parseLocation(p);
+        if (loc != null) {
+          final results = await _searchByLocation(loc);
+          allLocs.addAll(results);
+        }
+      }
+      if (allLocs.isNotEmpty) return allLocs;
+    }
+
     final loc = BibleLogic.parseLocation(cleanQuery);
     if (loc != null) return _searchByLocation(loc);
 
@@ -180,7 +261,6 @@ class DatabaseService {
           }
           if (found) { startWord = i + 1; endWord = i + queryWords.length; break; }
         }
-        // Capture EXACT text from verse including punctuation
         final exactText = verse.styledWords.sublist(startWord - 1, endWord).map((w) => w.text).join(' ');
         return BibleMatch(phrase: exactText, location: BibleLogic.formatLocation(verse.bookAbbreviation, verse.chapter, verse.verse, startWord, endWord), verse: verse, startWord: startWord, endWord: endWord);
       }).toList();
@@ -199,11 +279,6 @@ class DatabaseService {
       results.add(BibleMatch(phrase: verse.styledWords.sublist(start - 1, effEnd).map((w) => w.text).join(' '), location: BibleLogic.formatLocation(verse.bookAbbreviation, verse.chapter, verse.verse, start, effEnd), verse: verse, startWord: start, endWord: effEnd));
     }
     return results;
-  }
-
-  Future<List<WtotagResult>> wtotag(String query, {bool isBefore = true, int n = 3}) async {
-    final matches = await search(query);
-    return _wtotagInternal(matches, isBefore: isBefore, n: n);
   }
 
   Future<List<WtotagResult>> _wtotagInternal(List<BibleMatch> matches, {bool isBefore = true, int n = 3}) async {
@@ -376,33 +451,24 @@ class DatabaseService {
   }
 
   Future<List<Map<String, dynamic>>> getNotes() async => (await database).query('notes', orderBy: 'created_at DESC');
-}
 
-class BibleMatch {
-  final String phrase;
-  final String location;
-  final BibleVerse verse;
-  final int startWord;
-  final int endWord;
-  BibleMatch({required this.phrase, required this.location, required this.verse, required this.startWord, required this.endWord});
-}
+  // Library Support
+  Future<List<String>> getLibraryBooks() async {
+    final db = await database;
+    final results = await db.rawQuery('SELECT DISTINCT book_title FROM library ORDER BY book_title ASC');
+    return results.map((r) => r['book_title'] as String).toList();
+  }
 
-class WtotagResult {
-  final BibleMatch originalMatch;
-  final BibleMatch contextMatch;
-  final List<BibleMatch> contextMatches;
-  final int nValue;
-  final bool isBefore;
-  WtotagResult({required this.originalMatch, required this.contextMatch, required this.contextMatches, required this.nValue, required this.isBefore});
-}
-
-class VectorSpaceRow {
-  final String word;
-  final String location;
-  final int bookOrder;
-  List<BibleMatch> witnessesBefore = [];
-  List<BibleMatch> spiritualsBefore = [];
-  List<BibleMatch> witnessesAfter = [];
-  List<BibleMatch> spiritualsAfter = [];
-  VectorSpaceRow({required this.word, required this.location}) : bookOrder = BibleLogic.getBookOrder(location);
+  Future<void> addLibraryChapter(String book, String chapter, int index, String content, List<String> vectors) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    await db.insert('library', {
+      'book_title': book,
+      'chapter_title': chapter,
+      'chapter_index': index,
+      'content': content,
+      'source_vectors': vectors.join(','),
+      'created_at': now
+    });
+  }
 }
