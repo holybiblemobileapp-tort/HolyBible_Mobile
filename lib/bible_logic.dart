@@ -46,9 +46,9 @@ class BibleLogic {
     switch (style) {
       case BibleViewStyle.standard: return 'KEY';
       case BibleViewStyle.superscript: return 'ARRAY';
-      case BibleViewStyle.mathematics: return 'ARRAY';
-      case BibleViewStyle.mathematics2: return 'PROPORTION';
-      case BibleViewStyle.mathematicsUnconstraint: return 'JOIN';
+      case BibleViewStyle.mathematics: return 'MathKJVP';
+      case BibleViewStyle.mathematics2: return 'MathKJVS';
+      case BibleViewStyle.mathematicsUnconstraint: return 'MathKJVT';
     }
   }
 
@@ -94,7 +94,6 @@ class BibleLogic {
       return continuityMap.containsKey(wordLower);
     }
 
-    // Attempt to match multi-word parenthetical phrases if parenthesesMap exists
     Set<int> processedIndices = {};
 
     for (int i = 0; i < verse.styledWords.length; i++) {
@@ -104,12 +103,9 @@ class BibleLogic {
       final String rawText = bw.text.replaceAll('¶', '').trim();
       final String wordLower = rawText.toLowerCase().replaceAll(punctRegex, '');
       
-      // 1. Check Parentheses Overrides first
       if (parenthesesMap != null) {
         String? parOverride;
         int overrideLength = 0;
-        
-        // Check for longest matching phrase starting at this word
         for (int len = 10; len >= 1; len--) {
           if (i + len > verse.styledWords.length) continue;
           String phrase = verse.styledWords.sublist(i, i + len).map((w) => w.text.toLowerCase().replaceAll(punctRegex, '')).join(' ');
@@ -119,7 +115,6 @@ class BibleLogic {
             break;
           }
         }
-
         if (parOverride != null) {
           result.add(MathWord(
             original: bw,
@@ -132,7 +127,6 @@ class BibleLogic {
         }
       }
 
-      // 2. Standard Continuity Logic
       String? symbol = continuityMap[wordLower];
       bool hasPunctuation = bw.text.contains(RegExp(r'[.,;:!?]'));
       String punctuation = bw.text.replaceAll(RegExp(r'[^.,;:!?]'), '');
@@ -148,22 +142,22 @@ class BibleLogic {
       bool hideLeadingSpace = false;
 
       if (isOf && !inhibitOf) {
+        hideLeadingSpace = true;
+        // COLOR LOGIC: Only colour introduced parentheses if attached directly to a word (no space)
+        bool canColour = !isStartOfVerse && !precededByPunctuation;
+        
         if (isTertiary && hasPunctuation) {
-          parts.add(MathPart('()$punctuation', isRed: true, isParenthesis: true, isOfReplacement: true));
-          hideLeadingSpace = true;
+          parts.add(MathPart('()$punctuation', isRed: canColour, isParenthesis: true, isOfReplacement: true));
         } else {
-          parts.add(MathPart('(', isRed: true, isParenthesis: true, isOfReplacement: true));
+          parts.add(MathPart('(', isRed: canColour, isParenthesis: true, isOfReplacement: true));
           openOfCount++;
-          hideLeadingSpace = true;
         }
       } else if (symbol != null && !inhibitFunction) {
         if (openOfCount > 0) {
           parts.add(MathPart(')' * openOfCount, isRed: true, isParenthesis: true, isOfReplacement: true));
           openOfCount = 0;
         }
-
         bool shouldReplace = isTertiary || (isSecondary ? (!isFunctionWord(i + 1) || isFunctionWord(i - 1)) : !isFunctionWord(i - 1));
-
         if (shouldReplace) {
           parts.add(MathPart(symbol + punctuation, isRed: true));
         } else {
