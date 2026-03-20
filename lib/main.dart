@@ -63,6 +63,7 @@ class _HolyBibleAppState extends State<HolyBibleApp> {
   ThemeData _buildTheme(Brightness brightness) {
     Color primaryColor;
     Color scaffoldBg;
+    Color accentColor = Colors.amberAccent;
     
     switch (_selectedTheme) {
       case AppTheme.livingWater:
@@ -76,6 +77,7 @@ class _HolyBibleAppState extends State<HolyBibleApp> {
       case AppTheme.midnight:
         primaryColor = Colors.blueGrey[900]!;
         scaffoldBg = const Color(0xFF121212);
+        accentColor = Colors.cyanAccent;
         break;
       case AppTheme.defaultBrown:
       default:
@@ -84,21 +86,19 @@ class _HolyBibleAppState extends State<HolyBibleApp> {
         break;
     }
 
-    if (brightness == Brightness.dark || _selectedTheme == AppTheme.midnight) {
-      return ThemeData(
-        brightness: Brightness.dark,
-        primarySwatch: Colors.blueGrey,
-        scaffoldBackgroundColor: const Color(0xFF1A1A1A),
-        textTheme: _getTextTheme(Brightness.dark),
-      );
-    }
+    final isDark = brightness == Brightness.dark || _selectedTheme == AppTheme.midnight;
 
     return ThemeData(
-      brightness: Brightness.light,
+      brightness: isDark ? Brightness.dark : Brightness.light,
       primaryColor: primaryColor,
       appBarTheme: AppBarTheme(backgroundColor: primaryColor, foregroundColor: Colors.white),
-      scaffoldBackgroundColor: scaffoldBg,
-      textTheme: _getTextTheme(Brightness.light),
+      scaffoldBackgroundColor: isDark ? const Color(0xFF1A1A1A) : scaffoldBg,
+      tabBarTheme: TabBarThemeData(
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.white70,
+        indicator: UnderlineTabIndicator(borderSide: BorderSide(color: accentColor, width: 3)),
+      ),
+      textTheme: _getTextTheme(isDark ? Brightness.dark : Brightness.light),
     );
   }
 
@@ -178,7 +178,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   List<String> _books = [];
   List<int> _chapters = [];
   List<BibleVerse> _chapterVerses = [];
-  BibleViewStyle _currentStyle = BibleViewStyle.mathematics;
+  BibleViewStyle _currentStyle = BibleViewStyle.standard;
   BibleVerse? _dailyVerse;
   bool _isDbInitializing = true;
   
@@ -194,7 +194,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   @override
   void initState() {
     super.initState();
-    _bibleTabController = TabController(length: 4, vsync: this);
+    _bibleTabController = TabController(length: 5, vsync: this);
     _initData();
   }
 
@@ -230,7 +230,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
       _selectedChapter = null;
       _selectedVerse = null;
     });
-    _bibleTabController.animateTo(1);
+    _bibleTabController.animateTo(2);
   }
 
   Future<void> _onChapterSelected(int chapter) async {
@@ -240,16 +240,15 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
       _chapterVerses = verses;
       _selectedVerse = null;
     });
-    _bibleTabController.animateTo(2);
+    _bibleTabController.animateTo(3);
   }
 
   void _onVerseSelected(int verse) {
     setState(() {
       _selectedVerse = verse;
       _selectedWordIndex = 1;
-      _jumpHighlightPhrase = null;
     });
-    _bibleTabController.animateTo(3);
+    _bibleTabController.animateTo(4);
   }
 
   void _onChapterNavigate(String book, int chapter) async {
@@ -318,7 +317,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
       _jumpHighlightPhrase = highlight;
       _selectedIndex = 0;
     });
-    _bibleTabController.animateTo(3);
+    _bibleTabController.animateTo(4);
   }
 
   void _jumpToDetailedLocation(String book, int chapter, int verse, BibleViewStyle style, {int? wordIndex, String? highlight}) async {
@@ -335,7 +334,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
       _jumpHighlightPhrase = highlight;
       _selectedIndex = 0;
     });
-    _bibleTabController.animateTo(3);
+    _bibleTabController.animateTo(4);
   }
 
   void _showGeneralSearch() async {
@@ -348,15 +347,21 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
     }
   }
 
+  void _showVerseSelector() async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => const VerseSelectorDialog(),
+    );
+    if (result != null) {
+      final book = result['book'] as String;
+      final chapter = result['chapter'] as int;
+      final verse = result['verse'] as int;
+      final v = await _db.getSpecificVerse(book, chapter, verse);
+      if (v != null) setState(() => _dailyVerse = v);
+    }
+  }
+
   void _resetToWelcome() {
-    setState(() {
-      _selectedBook = null;
-      _selectedChapter = null;
-      _selectedVerse = null;
-      _selectedWordIndex = null;
-      _jumpHighlightPhrase = null;
-      _selectedIndex = 0;
-    });
     _bibleTabController.animateTo(0);
   }
 
@@ -372,15 +377,13 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final bool isAtHome = _selectedBook == null || _selectedBook == "";
-
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Authorized King James Version 1611 PCE', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            Text('Bible Vector Space Analysis', style: TextStyle(fontSize: 10, color: Colors.white70)),
+            const Text('Holy Bible Mobile', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            Text(_getDynamicStyleName(_currentStyle), style: const TextStyle(fontSize: 10, color: Colors.white70)),
           ],
         ),
         actions: [
@@ -389,15 +392,16 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
           IconButton(icon: const Icon(Icons.home), onPressed: _resetToWelcome),
           IconButton(icon: const Icon(Icons.settings), onPressed: () => _showSettings(context)),
         ],
-        bottom: (_selectedIndex == 0 && !isAtHome) 
+        bottom: (_selectedIndex == 0) 
           ? TabBar(
               controller: _bibleTabController,
               isScrollable: true,
               tabs: [
-                Tooltip(message: "HEIGHT", child: Tab(text: "BOOK${(_selectedBook != null && _selectedBook != "") ? ": $_selectedBook" : ""} (HEIGHT)")),
-                Tooltip(message: "DEPTH", child: Tab(text: "CHAPTER${(_selectedChapter != null) ? ": $_selectedChapter" : ""} (DEPTH)")),
-                Tooltip(message: "LENGTH", child: Tab(text: "VERSE${(_selectedVerse != null) ? ": $_selectedVerse" : ""} (LENGTH)")),
-                Tooltip(message: "BREADTH", child: Tab(text: "BREADTH (READER)")),
+                const Tab(icon: Icon(Icons.auto_awesome, size: 18), text: "HOME"),
+                Tab(text: "BOOK${(_selectedBook != null) ? ": $_selectedBook" : ""} (HEIGHT)"),
+                Tab(text: "CHAPTER${(_selectedChapter != null) ? ": $_selectedChapter" : ""} (DEPTH)"),
+                Tab(text: "VERSE${(_selectedVerse != null) ? ": $_selectedVerse" : ""} (LENGTH)"),
+                const Tab(text: "BREADTH (READER)"),
               ],
             )
           : null,
@@ -413,7 +417,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
         : IndexedStack(
             index: _selectedIndex,
             children: [
-              isAtHome ? _buildWelcomePage(_dailyVerse!, _continuityMap, _parenthesesMap) : _buildBibleTabs(),
+              _buildBibleTabs(),
               StudyHubView(
                 onJumpToLocation: _jumpToLocation,
                 currentStyle: _currentStyle,
@@ -427,17 +431,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
           ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (index) {
-          if (index == 0) {
-            setState(() {
-              _selectedIndex = 0;
-              if (_selectedBook == null) _selectedBook = ""; 
-            });
-            _bibleTabController.animateTo(0);
-          } else {
-            setState(() => _selectedIndex = index);
-          }
-        },
+        onTap: (index) => setState(() => _selectedIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.book), label: 'Bible'),
           BottomNavigationBarItem(icon: Icon(Icons.hub), label: 'Study Hub'),
@@ -451,6 +445,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
     return TabBarView(
       controller: _bibleTabController,
       children: [
+        _buildWelcomePage(_dailyVerse!, _continuityMap, _parenthesesMap),
         _buildBookTab(),
         _buildChapterTab(),
         _buildVerseGridTab(),
@@ -467,16 +462,18 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   }
 
   Widget _buildChapterTab() {
+    if (_selectedBook == null) return const Center(child: Text("Select a Book first (HEIGHT)"));
     return GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 8, crossAxisSpacing: 8, mainAxisSpacing: 8), itemCount: _chapters.length, itemBuilder: (context, index) { return InkWell(onTap: () => _onChapterSelected(_chapters[index]), child: Container(decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.2), borderRadius: BorderRadius.circular(4)), alignment: Alignment.center, child: Text('${_chapters[index]}'))); });
   }
 
   Widget _buildVerseGridTab() {
+    if (_selectedChapter == null) return const Center(child: Text("Select a Chapter first (DEPTH)"));
     final verses = _chapterVerses.map((v) => v.verse).toSet().toList()..sort();
     return GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 8, crossAxisSpacing: 8, mainAxisSpacing: 8), itemCount: verses.length, itemBuilder: (context, index) { return InkWell(onTap: () => _onVerseSelected(verses[index]), child: Container(decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.2), borderRadius: BorderRadius.circular(4)), alignment: Alignment.center, child: Text('${verses[index]}'))); });
   }
 
   Widget _buildVerseTab(Map<String, String> cont, Map<String, String> par) {
-    if (_selectedBook == null || _selectedChapter == null || _selectedBook == "") return const Center(child: CircularProgressIndicator());
+    if (_selectedBook == null || _selectedChapter == null) return const Center(child: Text("Navigation required (HEIGHT > DEPTH > LENGTH)"));
     return BibleReaderView(bookName: _selectedBook!, chapter: _selectedChapter!, allVersesOfChapter: _chapterVerses, currentStyle: _currentStyle, continuityMap: cont, parenthesesMap: par, targetVerse: _selectedVerse, targetWordIndex: _selectedWordIndex, audioService: _audioService, isAudioEnabled: widget.isAudioEnabled, fontSize: widget.fontSize, isDarkMode: widget.selectedTheme == AppTheme.midnight, highlightPhrase: _jumpHighlightPhrase, onChapterChange: (ch) => _onChapterNavigate(_selectedBook!, ch));
   }
 
@@ -491,9 +488,14 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Daily Bread', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Daily Bread', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    IconButton(icon: const Icon(Icons.edit, size: 20, color: Colors.brown), onPressed: _showVerseSelector, tooltip: "Change Verse"),
+                  ],
+                ),
                 Text('${v.bookAbbreviation}${v.chapter}:${v.verse}:1-${v.wordCount}', style: const TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500)),
-                Text(_getDynamicStyleName(_currentStyle), style: const TextStyle(fontSize: 11, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
               ],
             ),
           ),
@@ -501,11 +503,25 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
       ),
       const SizedBox(height: 20),
       _buildWelcomeSection('AKJV 1611 PCE circa 1900', Text(v.text, textAlign: TextAlign.center, style: TextStyle(fontSize: widget.fontSize, fontStyle: FontStyle.italic)), () => _jumpToDetailedLocation(v.book, v.chapter, v.verse, BibleViewStyle.standard)),
-      _buildWelcomeSection('Superscript KJV', _buildArrayContent(v), () => _jumpToDetailedLocation(v.book, v.chapter, v.verse, BibleViewStyle.superscript)),
+      _buildWelcomeSection('Superscript KJV', _buildCardContent(v, BibleViewStyle.superscript), () => _jumpToDetailedLocation(v.book, v.chapter, v.verse, BibleViewStyle.superscript)),
       _buildWelcomeSection('MathKJVP', _buildMathContent(v, cont, par, BibleViewStyle.mathematics), () => _jumpToDetailedLocation(v.book, v.chapter, v.verse, BibleViewStyle.mathematics)),
       _buildWelcomeSection('MathKJVS', _buildMathContent(v, cont, par, BibleViewStyle.mathematics2), () => _jumpToDetailedLocation(v.book, v.chapter, v.verse, BibleViewStyle.mathematics2)),
       _buildWelcomeSection('MathKJVT', _buildMathContent(v, cont, par, BibleViewStyle.mathematicsUnconstraint), () => _jumpToDetailedLocation(v.book, v.chapter, v.verse, BibleViewStyle.mathematicsUnconstraint)),
     ]));
+  }
+
+  Widget _buildCardContent(BibleVerse v, BibleViewStyle style) {
+    final bool isDarkTheme = Theme.of(context).brightness == Brightness.dark || widget.selectedTheme == AppTheme.midnight;
+    final Color textColor = isDarkTheme ? Colors.white : Colors.black;
+
+    if (style == BibleViewStyle.superscript) {
+      return Wrap(alignment: WrapAlignment.center, children: v.styledWords.map((w) => RichText(text: TextSpan(children: [
+        TextSpan(text: '${w.text}', style: TextStyle(color: textColor, fontSize: widget.fontSize, fontStyle: w.isItalic ? FontStyle.italic : FontStyle.normal)),
+        WidgetSpan(child: Transform.translate(offset: const Offset(0, -10), child: Text('${w.index}', style: TextStyle(fontSize: widget.fontSize * 0.6, color: Colors.blue, fontWeight: FontWeight.bold)))),
+        const TextSpan(text: ' '),
+      ]))).toList());
+    }
+    return Text(v.text, style: TextStyle(color: textColor, fontSize: widget.fontSize));
   }
 
   Widget _buildMathContent(BibleVerse v, Map<String, String> cont, Map<String, String> par, BibleViewStyle style) {
@@ -517,14 +533,6 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
         ...mw.parts.map((p) => TextSpan(text: p.text, style: TextStyle(color: p.isRed ? Colors.redAccent : Colors.white, fontSize: widget.fontSize, fontWeight: FontWeight.bold, fontFamily: 'Courier', shadows: [Shadow(blurRadius: 2.0, color: p.isRed ? Colors.red : Colors.cyanAccent)])))
       ])))).toList()),
     );
-  }
-
-  Widget _buildArrayContent(BibleVerse v) {
-    return Wrap(alignment: WrapAlignment.center, children: v.styledWords.map((w) => RichText(text: TextSpan(children: [
-      TextSpan(text: '${w.text}', style: TextStyle(fontSize: widget.fontSize, fontStyle: w.isItalic ? FontStyle.italic : FontStyle.normal)),
-      WidgetSpan(child: Transform.translate(offset: const Offset(0, -10), child: Text('${w.index}', style: TextStyle(fontSize: widget.fontSize * 0.6, color: Colors.blue, fontWeight: FontWeight.bold)))),
-      const TextSpan(text: ' '),
-    ]))).toList());
   }
 
   Widget _buildWelcomeSection(String title, Widget content, VoidCallback onTap) { return Column(children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)), InkWell(onTap: onTap, child: Card(elevation: 4, child: Padding(padding: const EdgeInsets.all(16.0), child: content))), const SizedBox(height: 15)]); }

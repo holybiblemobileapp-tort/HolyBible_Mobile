@@ -1,9 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'database_service.dart';
-import 'download_service.dart';
-import 'bible_service.dart';
 import 'bible_model.dart';
 import 'bible_logic.dart';
 
@@ -34,61 +33,85 @@ enum ViewMode { limitTable, dictionary }
 
 class _StudyHubViewState extends State<StudyHubView> {
   final DatabaseService _dbService = DatabaseService();
-  final DownloadService _downloadService = DownloadService();
-  final BibleService _bibleService = BibleService();
-
-  final Map<String, double> _downloadProgress = {};
   final TextEditingController _dictController = TextEditingController();
   final TextEditingController _subsetFilterController = TextEditingController();
+  
+  // Persistent scroll controllers for the GRID view
+  final ScrollController _horizontalScroll = ScrollController();
+  final ScrollController _verticalScroll = ScrollController();
   
   bool _isInterpreting = false;
   List<VectorSpaceRow> _vectorSpaceRows = [];
   VectorDirection _selectedDirection = VectorDirection.both;
   ViewMode _selectedView = ViewMode.limitTable;
   double _nValue = 3.0;
-  bool _buildAsBook = false;
   
   int? _subsetStart;
   int? _subsetEnd;
   int? _totalRecords;
 
-  // Selected definitions: Map<LocationOfWord, Map<DefinitionPhrase, DefinitionLocation>>
   final Map<String, Map<String, String>> _selectedDefinitions = {};
 
-  final String _legendText = """LEGEND:
- WTOTAG:where two or three are gathered(Mat18:20:2-7)
- CSTWS: comparing spiritual things with spiritual.(1Co2:13:20-24)
- not yea and nay, but in him = yea.(2Co1:19:23-31)""";
+  final String _legendText = "WTOTAG: Mat18:20:2-7 | CSTWS: 1Co2:13:20-24 | YEA: 2Co1:19:23-31";
+
+  // Surgical filtering: Filter Grid rows based on Dictionary selections
+  List<VectorSpaceRow> get _filteredRows {
+    if (_selectedDefinitions.isEmpty) return _vectorSpaceRows;
+    
+    List<VectorSpaceRow> filtered = [];
+    for (var originalRow in _vectorSpaceRows) {
+      if (!_selectedDefinitions.containsKey(originalRow.location)) continue;
+      
+      final selections = _selectedDefinitions[originalRow.location]!;
+      final filteredRow = VectorSpaceRow(word: originalRow.word, location: originalRow.location);
+      
+      for (int i = 0; i < originalRow.spiritualsBefore.length; i++) {
+        final def = originalRow.spiritualsBefore[i];
+        if (selections.containsKey(def.phrase) && selections[def.phrase] == def.location) {
+          if (i < originalRow.witnessesBefore.length) filteredRow.witnessesBefore.add(originalRow.witnessesBefore[i]);
+          filteredRow.spiritualsBefore.add(def);
+        }
+      }
+      
+      for (int i = 0; i < originalRow.spiritualsAfter.length; i++) {
+        final def = originalRow.spiritualsAfter[i];
+        if (selections.containsKey(def.phrase) && selections[def.phrase] == def.location) {
+          if (i < originalRow.witnessesAfter.length) filteredRow.witnessesAfter.add(originalRow.witnessesAfter[i]);
+          filteredRow.spiritualsAfter.add(def);
+        }
+      }
+      
+      if (filteredRow.spiritualsBefore.isNotEmpty || filteredRow.spiritualsAfter.isNotEmpty) {
+        filtered.add(filteredRow);
+      }
+    }
+    return filtered;
+  }
 
   @override
   void dispose() {
     _dictController.dispose();
     _subsetFilterController.dispose();
+    _horizontalScroll.dispose();
+    _verticalScroll.dispose();
     super.dispose();
   }
 
   void _checkCount() async {
     final query = _dictController.text.trim();
     if (query.isEmpty) return;
-    
     final count = await _dbService.countSearchMatches(query);
-    setState(() {
-      _totalRecords = count;
-    });
+    setState(() => _totalRecords = count);
   }
 
   void _runInterpretation() async {
     final query = _dictController.text.trim();
     if (query.isEmpty) return;
-
     _applySubsetFilter(_subsetFilterController.text);
-
     setState(() {
       _isInterpreting = true;
-      _vectorSpaceRows = [];
       _selectedDefinitions.clear();
     });
-
     try {
       int? limit;
       int? offset;
@@ -96,7 +119,6 @@ class _StudyHubViewState extends State<StudyHubView> {
         offset = (_subsetStart! - 1).clamp(0, 100000);
         limit = (_subsetEnd! - offset).clamp(1, 100000);
       }
-
       final results = await _dbService.getVectorSpaceGrid(
         query, 
         n: _nValue.toInt(),
@@ -105,71 +127,53 @@ class _StudyHubViewState extends State<StudyHubView> {
         limit: limit,
         offset: offset,
       );
-      
       results.sort((a, b) => a.bookOrder.compareTo(b.bookOrder));
-
-      if (mounted) {
-        setState(() {
-          _vectorSpaceRows = results;
-          _isInterpreting = false;
-        });
-      }
+      if (mounted) setState(() { _vectorSpaceRows = results; _isInterpreting = false; });
     } catch (e) {
-      if (mounted) {
-        setState(() { _isInterpreting = false; });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-      }
+      if (mounted) { setState(() => _isInterpreting = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"))); }
     }
   }
 
   void _applySubsetFilter(String value) {
-    if (value.isEmpty) { 
-      _subsetStart = null; 
-      _subsetEnd = null; 
-      return; 
-    }
+    if (value.isEmpty) { _subsetStart = null; _subsetEnd = null; return; }
     final range = value.split('-');
     if (range.length == 2) {
       _subsetStart = int.tryParse(range[0].trim());
       _subsetEnd = int.tryParse(range[1].trim());
     } else {
       final single = int.tryParse(value.trim());
-      if (single != null) {
-        _subsetStart = single;
-        _subsetEnd = single;
-      }
+      if (single != null) { _subsetStart = single; _subsetEnd = single; }
     }
   }
-
-  List<VectorSpaceRow> get _filteredRows => _vectorSpaceRows;
 
   String _getStyleLabel() {
     switch (widget.currentStyle) {
       case BibleViewStyle.standard: return "AKJV 1611 PCE";
       case BibleViewStyle.superscript: return "Superscript KJV";
-      case BibleViewStyle.mathematics: return "Mathematics KJV 1";
-      case BibleViewStyle.mathematics2: return "Mathematics KJV 2";
-      case BibleViewStyle.mathematicsUnconstraint: return "Mathematics KJV UNCONSTRAINT";
+      case BibleViewStyle.mathematics: return "MathKJVP";
+      case BibleViewStyle.mathematics2: return "MathKJVS";
+      case BibleViewStyle.mathematicsUnconstraint: return "MathKJVT";
     }
   }
 
   Widget _buildStyledPhrase(BibleMatch m, {bool isBullet = false}) {
-    final locationStyle = TextStyle(fontSize: 8, color: widget.isDarkMode ? Colors.amber[200] : Colors.grey[700], fontFamily: 'Courier');
+    final double fs = widget.fontSize * 0.7;
+    final locationStyle = TextStyle(fontSize: fs * 0.7, color: widget.isDarkMode ? Colors.amber[200] : Colors.grey[700], fontFamily: 'Courier');
     final bulletStr = isBullet ? "◦ " : "";
     
     if (widget.currentStyle == BibleViewStyle.standard) {
       return Text("$bulletStr${m.phrase}(${m.location})", 
-        style: TextStyle(fontSize: 10, color: widget.isDarkMode ? Colors.white70 : Colors.black87));
+        style: TextStyle(fontSize: fs, color: widget.isDarkMode ? Colors.white70 : Colors.black87));
     }
     
     if (widget.currentStyle == BibleViewStyle.superscript) {
       return RichText(
         text: TextSpan(
           children: [
-            if (isBullet) const TextSpan(text: "◦ ", style: TextStyle(fontSize: 10, color: Colors.grey)),
+            if (isBullet) TextSpan(text: "◦ ", style: TextStyle(fontSize: fs, color: Colors.grey)),
             ...m.verse.styledWords.sublist(m.startWord - 1, m.endWord).expand((w) => [
-              TextSpan(text: w.text, style: TextStyle(color: widget.isDarkMode ? Colors.white70 : Colors.black, fontSize: 10, fontStyle: w.isItalic ? FontStyle.italic : FontStyle.normal)),
-              WidgetSpan(child: Transform.translate(offset: const Offset(0, -5), child: Text('${w.index}', style: const TextStyle(fontSize: 7, color: Colors.blue)))),
+              TextSpan(text: w.text, style: TextStyle(color: widget.isDarkMode ? Colors.white70 : Colors.black, fontSize: fs, fontStyle: w.isItalic ? FontStyle.italic : FontStyle.normal)),
+              WidgetSpan(child: Transform.translate(offset: const Offset(0, -5), child: Text('${w.index}', style: TextStyle(fontSize: fs * 0.6, color: Colors.blue)))),
               const TextSpan(text: ' '),
             ]),
             TextSpan(text: "(${m.location})", style: locationStyle),
@@ -184,12 +188,12 @@ class _StudyHubViewState extends State<StudyHubView> {
     return RichText(
       text: TextSpan(
         children: [
-          if (isBullet) const TextSpan(text: "◦ ", style: TextStyle(fontSize: 10, color: Colors.grey)),
+          if (isBullet) TextSpan(text: "◦ ", style: TextStyle(fontSize: fs, color: Colors.grey)),
           ...selectedWords.expand((mw) => [
             if (mw.hasLeadingSpace) const TextSpan(text: ' '),
             ...mw.parts.map((p) => TextSpan(text: p.text, style: TextStyle(
-              color: p.isRed ? Colors.redAccent : Colors.white,
-              fontSize: 10,
+              color: p.isRed ? Colors.redAccent : (widget.isDarkMode || widget.currentStyle != BibleViewStyle.standard ? Colors.white : Colors.black),
+              fontSize: fs,
               fontWeight: FontWeight.bold,
               fontFamily: 'Courier',
               shadows: [Shadow(blurRadius: 2.0, color: p.isRed ? Colors.red : Colors.cyanAccent)],
@@ -206,52 +210,39 @@ class _StudyHubViewState extends State<StudyHubView> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Export Choices"),
-        content: const Text("Include the Limit Table Grid (WYSIWYG) in the export?"),
+        content: Text(_selectedDefinitions.isNotEmpty 
+          ? "Export ONLY the ${_selectedDefinitions.length} selected related records from the Limit Table?" 
+          : "Include the full Limit Table Grid (WYSIWYG) in the export?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("No, Dict only")),
           ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("Yes, Include Grid")),
         ],
       ),
     );
-
     if (includeLimitTable == null) return;
-
     StringBuffer sb = StringBuffer();
-    final String viewTypeLabel = _selectedView == ViewMode.limitTable ? "Limit Table" : "Use";
-    final title = "Title: $viewTypeLabel for \"${_dictController.text}\" in the ${_getStyleLabel()}";
-    
-    sb.writeln(title);
+    sb.writeln("Title: Limit Table for \"${_dictController.text}\" in the ${_getStyleLabel()}");
     sb.writeln(_legendText);
-    sb.writeln("-" * 60);
-    sb.writeln("");
-
+    sb.writeln("-" * 60 + "\n");
+    
     if (includeLimitTable) {
       String header = "BIBLEWORD | LOCATION";
-      if (_selectedDirection == VectorDirection.before || _selectedDirection == VectorDirection.both) {
-        header += " | WTOTAG_BEFORE(⟼) | CSTWS_BEFORE(⟼)";
-      }
-      if (_selectedDirection == VectorDirection.after || _selectedDirection == VectorDirection.both) {
-        header += " | WTOTAG_AFTER(⟻) | CSTWS_AFTER(⟻)";
-      }
+      if (_selectedDirection != VectorDirection.after) header += " | WTOTAG_BEFORE | CSTWS_BEFORE";
+      if (_selectedDirection != VectorDirection.before) header += " | WTOTAG_AFTER | CSTWS_AFTER";
       sb.writeln(header);
-      sb.writeln("-" * header.length);
-
-      for (var row in _filteredRows) {
-        // WYSIWYG logic: iterate through all possible match indices
-        int maxBefore = max(row.witnessesBefore.length, row.spiritualsBefore.length);
-        int maxAfter = max(row.witnessesAfter.length, row.spiritualsAfter.length);
-        int totalSubRows = max(maxBefore, maxAfter);
+      
+      final rowsToExport = _filteredRows;
+      for (var row in rowsToExport) {
+        int totalSubRows = max(max(row.witnessesBefore.length, row.spiritualsBefore.length), max(row.witnessesAfter.length, row.spiritualsAfter.length));
         if (totalSubRows == 0) totalSubRows = 1;
-
         for (int i = 0; i < totalSubRows; i++) {
           String line = "${row.word} | ${row.location}";
-          
-          if (_selectedDirection == VectorDirection.before || _selectedDirection == VectorDirection.both) {
+          if (_selectedDirection != VectorDirection.after) {
             String wb = i < row.witnessesBefore.length ? "${row.witnessesBefore[i].phrase}(${row.witnessesBefore[i].location})" : "";
             String sbCol = i < row.spiritualsBefore.length ? "${row.spiritualsBefore[i].phrase}(${row.spiritualsBefore[i].location})" : "";
             line += " | $wb | $sbCol";
           }
-          if (_selectedDirection == VectorDirection.after || _selectedDirection == VectorDirection.both) {
+          if (_selectedDirection != VectorDirection.before) {
             String wa = i < row.witnessesAfter.length ? "${row.witnessesAfter[i].phrase}(${row.witnessesAfter[i].location})" : "";
             String sa = i < row.spiritualsAfter.length ? "${row.spiritualsAfter[i].phrase}(${row.spiritualsAfter[i].location})" : "";
             line += " | $wa | $sa";
@@ -261,22 +252,16 @@ class _StudyHubViewState extends State<StudyHubView> {
       }
       sb.writeln("\n");
     }
-
+    
     if (_selectedDefinitions.isNotEmpty) {
       sb.writeln("--- DICTIONARY ENTRIES ---");
       for (var entry in _selectedDefinitions.entries) {
-        final locationOfWord = entry.key;
-        final wordText = _vectorSpaceRows.firstWhere((r) => r.location == locationOfWord).word;
-        for (var def in entry.value.entries) {
-          final defPhrase = def.key;
-          final defLocation = def.value;
-          sb.writeln("$wordText($locationOfWord) = $defPhrase($defLocation)");
-        }
+        final row = _vectorSpaceRows.firstWhere((r) => r.location == entry.key);
+        for (var def in entry.value.entries) sb.writeln("${row.word}(${entry.key}) = ${def.key}(${def.value})");
       }
     }
-
     Clipboard.setData(ClipboardData(text: sb.toString()));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Exported to Clipboard (WYSIWYG Paired Rows)")));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Exported Selection to Clipboard")));
   }
 
   @override
@@ -285,20 +270,24 @@ class _StudyHubViewState extends State<StudyHubView> {
       length: 4,
       child: Column(
         children: [
-          const TabBar(
-            isScrollable: true,
-            tabs: [
-              Tab(icon: Icon(Icons.grid_on), text: "Wholesome Words"),
-              Tab(icon: Icon(Icons.functions), text: "Your Strong Reasons"),
-              Tab(icon: Icon(Icons.library_books), text: "Audio Books"),
-              Tab(icon: Icon(Icons.note), text: "Study Notes"),
+          Container(
+            width: double.infinity, color: Colors.brown[50], padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text("Study to shew thyself approved unto God,", textAlign: TextAlign.center, style: TextStyle(fontStyle: FontStyle.italic, color: Colors.brown, fontSize: widget.fontSize * 0.6, fontWeight: FontWeight.bold)),
+          ),
+          TabBar(
+            isScrollable: true, labelColor: Colors.brown, unselectedLabelColor: Colors.grey, indicatorColor: Colors.brown,
+            tabs: const [
+              Tab(icon: Icon(Icons.grid_on, size: 18), text: "Wholesome Words"),
+              Tab(icon: Icon(Icons.functions, size: 18), text: "Your Strong Reasons"),
+              Tab(icon: Icon(Icons.library_books, size: 18), text: "Audio Books"),
+              Tab(icon: Icon(Icons.note, size: 18), text: "Study Notes"),
             ],
           ),
           Expanded(
             child: TabBarView(
               children: [
                 _buildAnalysisTab(),
-                _buildConstantsGallery(),
+                _buildStrongReasonsTab(),
                 _buildBooksList(),
                 _buildNotesList(),
               ],
@@ -310,210 +299,129 @@ class _StudyHubViewState extends State<StudyHubView> {
   }
 
   Widget _buildAnalysisTab() {
+    final double fs = widget.fontSize * 0.7;
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(8.0),
           child: Column(
             children: [
               Row(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _dictController,
-                      decoration: InputDecoration(
-                        hintText: "Enter Phrase (e.g. charity)",
-                        border: const OutlineInputBorder(),
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.info_outline, color: Colors.blue),
-                          onPressed: _checkCount,
-                          tooltip: "Check Total Occurrences",
-                        ),
-                      ),
-                      onSubmitted: (_) => _runInterpretation(),
-                    ),
-                  ),
+                  Expanded(child: TextField(controller: _dictController, style: TextStyle(fontSize: fs), decoration: InputDecoration(hintText: "Phrase (e.g. charity)", isDense: true, border: const OutlineInputBorder(), suffixIcon: IconButton(icon: const Icon(Icons.info_outline, size: 18), onPressed: _checkCount)))),
                   const SizedBox(width: 8),
-                  SizedBox(
-                    width: 120,
-                    child: TextField(
-                      controller: _subsetFilterController,
-                      decoration: const InputDecoration(
-                        hintText: "e.g. 1-10",
-                        labelText: "Range",
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
+                  SizedBox(width: 80, child: TextField(controller: _subsetFilterController, style: TextStyle(fontSize: fs), decoration: const InputDecoration(hintText: "1-10", labelText: "Range", isDense: true, border: OutlineInputBorder()))),
                   const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: _isInterpreting ? null : _runInterpretation,
-                    icon: const Icon(Icons.calculate),
-                    label: const Text("GENERATE"),
-                  ),
+                  ElevatedButton(onPressed: _isInterpreting ? null : _runInterpretation, child: const Text("GENERATE")),
                 ],
               ),
-              if (_totalRecords != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Column(
+              ExpansionTile(
+                title: Text(_totalRecords != null ? "Total: $_totalRecords word instances found. Filter Active: ${_selectedDefinitions.isNotEmpty}" : "Analysis Controls", style: TextStyle(fontSize: fs * 0.8, fontWeight: FontWeight.bold, color: Colors.blue)),
+                dense: true, visualDensity: VisualDensity.compact,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        "Total Instances Found: $_totalRecords. Select a Range (e.g. 1-10) and click GENERATE.",
-                        style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.bold),
+                      Text(" N: ", style: TextStyle(fontSize: fs * 0.8)),
+                      Expanded(child: Slider(value: _nValue, min: 2, max: 10, divisions: 8, onChanged: (v) => setState(() => _nValue = v))),
+                      SegmentedButton<VectorDirection>(
+                        segments: const [ButtonSegment(value: VectorDirection.before, label: Text("BEF", style: TextStyle(fontSize: 9))), ButtonSegment(value: VectorDirection.after, label: Text("AFT", style: TextStyle(fontSize: 9))), ButtonSegment(value: VectorDirection.both, label: Text("BOTH", style: TextStyle(fontSize: 9)))],
+                        selected: {_selectedDirection}, onSelectionChanged: (s) => setState(() => _selectedDirection = s.first),
                       ),
-                      const Text(
-                        "*Using smaller ranges results in smoother and faster App performance.",
-                        style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic),
+                      const SizedBox(width: 8),
+                      SegmentedButton<ViewMode>(
+                        segments: const [ButtonSegment(value: ViewMode.limitTable, label: Text("GRID", style: TextStyle(fontSize: 9))), ButtonSegment(value: ViewMode.dictionary, label: Text("DICT", style: TextStyle(fontSize: 9)))],
+                        selected: {_selectedView}, onSelectionChanged: (s) => setState(() => _selectedView = s.first),
                       ),
                     ],
-                  ),
-                ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Tooltip(message: "ε>0", child: Text("Precision (N): ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                  Expanded(
-                    child: Slider(
-                      value: _nValue, min: 2, max: 10, divisions: 8,
-                      label: _nValue.toInt().toString(),
-                      onChanged: (val) => setState(() { _nValue = val; }),
-                      onChangeEnd: (val) { if (_dictController.text.isNotEmpty) _runInterpretation(); },
-                    ),
-                  ),
-                  Text(_nValue.toInt().toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 20),
-                  const Text("Build Book", style: TextStyle(fontSize: 12)),
-                  Checkbox(value: _buildAsBook, onChanged: (v) => setState(() => _buildAsBook = v!)),
-                ],
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  SegmentedButton<VectorDirection>(
-                    segments: const [
-                      ButtonSegment(value: VectorDirection.before, label: Text("BEFORE", style: TextStyle(fontSize: 10))),
-                      ButtonSegment(value: VectorDirection.after, label: Text("AFTER", style: TextStyle(fontSize: 10))),
-                      ButtonSegment(value: VectorDirection.both, label: Text("BOTH", style: TextStyle(fontSize: 10))),
-                    ],
-                    selected: {_selectedDirection},
-                    onSelectionChanged: (newSelection) {
-                      setState(() { _selectedDirection = newSelection.first; });
-                      if (_dictController.text.isNotEmpty) _runInterpretation();
-                    },
-                  ),
-                  SegmentedButton<ViewMode>(
-                    segments: const [
-                      ButtonSegment(value: ViewMode.limitTable, label: Text("GRID", style: TextStyle(fontSize: 10))),
-                      ButtonSegment(value: ViewMode.dictionary, label: Text("DICT", style: TextStyle(fontSize: 10))),
-                    ],
-                    selected: {_selectedView},
-                    onSelectionChanged: (newSelection) => setState(() { _selectedView = newSelection.first; }),
                   ),
                 ],
               ),
             ],
           ),
         ),
-        if (_isInterpreting)
-          const Expanded(child: Center(child: CircularProgressIndicator()))
-        else if (_vectorSpaceRows.isNotEmpty)
-          Expanded(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text("Showing instances ${_subsetStart ?? 1} to ${_subsetEnd ?? (_subsetStart ?? 1) + _vectorSpaceRows.length - 1} of $_totalRecords", style: const TextStyle(fontSize: 10, color: Colors.black54)),
-                          const Spacer(),
-                          ElevatedButton.icon(
-                            onPressed: _handleChoiceExport,
-                            icon: const Icon(Icons.copy, size: 16),
-                            label: const Text("Export Choice", style: TextStyle(fontSize: 12)),
-                          ),
-                        ],
-                      ),
-                      const Divider(),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: Text(
-                          _selectedView == ViewMode.limitTable 
-                            ? 'Limit Table for "${_dictController.text}" in the ${_getStyleLabel()}'
-                            : 'Use of "${_dictController.text}" in the ${_getStyleLabel()}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.brown),
-                        ),
-                      ),
-                      if (_selectedView == ViewMode.limitTable) ...[
-                        const Text("LEGEND:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                        Text(_legendText.replaceFirst("LEGEND:\n", ""), style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                        const SizedBox(height: 4),
-                      ],
-                    ],
-                  ),
+        if (_isInterpreting) const Expanded(child: Center(child: CircularProgressIndicator()))
+        else if (_vectorSpaceRows.isNotEmpty) Expanded(
+          flex: 4, 
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(_legendText, style: TextStyle(fontSize: fs * 0.6, color: Colors.grey))),
+                    if (_selectedDefinitions.isNotEmpty) 
+                      Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(label: const Text("Clear Filter", style: TextStyle(fontSize: 9)), onPressed: () => setState(() => _selectedDefinitions.clear()))),
+                    ElevatedButton.icon(onPressed: _handleChoiceExport, icon: const Icon(Icons.copy, size: 14), label: const Text("Export", style: TextStyle(fontSize: 11))),
+                  ],
                 ),
-                Expanded(
-                  child: Container(
-                    color: (widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript) ? Colors.black : null,
-                    child: _selectedView == ViewMode.limitTable ? _buildLimitTable(_filteredRows) : _buildDictionaryTable(_filteredRows),
-                  ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: Container(
+                  color: (widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript) ? Colors.black : null,
+                  child: _selectedView == ViewMode.limitTable ? _buildLimitTable(_filteredRows) : _buildDictionaryTable(_vectorSpaceRows),
                 ),
-              ],
-            ),
-          )
-        else
-          const Expanded(child: Center(child: Text("BIBLE VECTOR SPACE Analysis.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)))),
+              ),
+            ],
+          ),
+        )
+        else const Expanded(child: Center(child: Text("BIBLE VECTOR SPACE Analysis.", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)))),
       ],
     );
   }
 
+  Widget _buildStrongReasonsTab() {
+    return FutureBuilder<String>(
+      future: rootBundle.loadString('assets/YOUR_STRONG_REASONS.md'),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        return Markdown(data: snapshot.data!, styleSheet: MarkdownStyleSheet(h1: const TextStyle(color: Colors.brown), h2: const TextStyle(color: Colors.blueGrey)));
+      },
+    );
+  }
+
   Widget _buildLimitTable(List<VectorSpaceRow> rows) {
-    final ScrollController horizontalScroll = ScrollController();
+    final double fs = widget.fontSize * 0.7;
     return Scrollbar(
-      controller: horizontalScroll,
-      thumbVisibility: true,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.vertical,
+      controller: _verticalScroll, thumbVisibility: true,
+      child: Scrollbar(
+        controller: _horizontalScroll, thumbVisibility: true,
+        notificationPredicate: (notif) => notif.depth == 1,
         child: SingleChildScrollView(
-          controller: horizontalScroll,
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columnSpacing: 20,
-            dataRowMaxHeight: double.infinity,
-            headingRowColor: MaterialStateProperty.all(Colors.red[50]!),
-            border: TableBorder.all(color: Colors.grey[300]!),
-            columns: [
-              const DataColumn(label: Text('BIBLEWORD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.red))),
-              const DataColumn(label: Text('LOCATION', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.red))),
-              if (_selectedDirection == VectorDirection.before || _selectedDirection == VectorDirection.both) ...[
-                const DataColumn(label: Text('WTOTAG_BEFORE(⟼)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.red))),
-                const DataColumn(label: Text('CSTWS_BEFORE(⟼)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.red))),
+          controller: _verticalScroll,
+          child: SingleChildScrollView(
+            controller: _horizontalScroll, scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columnSpacing: 15, dataRowMaxHeight: double.infinity, headingRowHeight: 30,
+              headingRowColor: MaterialStateProperty.all(Colors.red[50]!),
+              border: TableBorder.all(color: Colors.grey[300]!),
+              columns: [
+                DataColumn(label: Text('BIBLEWORD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                DataColumn(label: Text('LOCATION', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                if (_selectedDirection != VectorDirection.after) ...[
+                  DataColumn(label: Text('WTOTAG_BEF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                  DataColumn(label: Text('CSTWS_BEF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                ],
+                if (_selectedDirection != VectorDirection.before) ...[
+                  DataColumn(label: Text('WTOTAG_AFT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                  DataColumn(label: Text('CSTWS_AFT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                ],
               ],
-              if (_selectedDirection == VectorDirection.after || _selectedDirection == VectorDirection.both) ...[
-                const DataColumn(label: Text('WTOTAG_AFTER(⟻)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.red))),
-                const DataColumn(label: Text('CSTWS_AFTER(⟻)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.red))),
-              ],
-            ],
-            rows: rows.map((row) {
-              return DataRow(
+              rows: rows.map((row) => DataRow(
                 cells: [
-                  DataCell(Text(row.word, style: const TextStyle(fontSize: 11, fontFamily: 'Courier'))),
-                  DataCell(InkWell(child: Text(row.location, style: const TextStyle(fontSize: 11, color: Colors.blue, fontFamily: 'Courier')), onTap: () => widget.onJumpToLocation(row.location))),
-                  if (_selectedDirection == VectorDirection.before || _selectedDirection == VectorDirection.both) ...[
+                  DataCell(Text(row.word, style: TextStyle(fontSize: fs, fontFamily: 'Courier'))),
+                  DataCell(InkWell(child: Text(row.location, style: TextStyle(fontSize: fs, color: Colors.blue, fontFamily: 'Courier')), onTap: () => widget.onJumpToLocation(row.location))),
+                  if (_selectedDirection != VectorDirection.after) ...[
                     DataCell(Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.witnessesBefore.map((w) => _buildStyledPhrase(w)).toList())),
                     DataCell(Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.spiritualsBefore.map((s) => _buildStyledPhrase(s, isBullet: true)).toList())),
                   ],
-                  if (_selectedDirection == VectorDirection.after || _selectedDirection == VectorDirection.both) ...[
+                  if (_selectedDirection != VectorDirection.before) ...[
                     DataCell(Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.witnessesAfter.map((w) => _buildStyledPhrase(w)).toList())),
                     DataCell(Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.spiritualsAfter.map((s) => _buildStyledPhrase(s, isBullet: true)).toList())),
                   ],
                 ],
-              );
-            }).toList(),
+              )).toList(),
+            ),
           ),
         ),
       ),
@@ -521,48 +429,22 @@ class _StudyHubViewState extends State<StudyHubView> {
   }
 
   Widget _buildDictionaryTable(List<VectorSpaceRow> rows) {
+    final double fs = widget.fontSize * 0.7;
     return ListView.builder(
       itemCount: rows.length,
       itemBuilder: (context, index) {
         final row = rows[index];
         final List<BibleMatch> definitions = [...row.spiritualsBefore, ...row.spiritualsAfter];
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: double.maxFinite, color: Colors.grey[900],
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Text("${row.word} (${row.location})", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.open_in_new, color: Colors.blue, size: 16),
-                    onPressed: () => widget.onJumpToLocation(row.location),
-                  ),
-                ],
-              ),
-            ),
-            ...definitions.map((def) {
-              final isSelected = _selectedDefinitions[row.location]?.containsKey(def.phrase) ?? false;
-              return ListTile(
-                dense: true,
-                title: _buildStyledPhrase(def),
-                trailing: Checkbox(
-                  value: isSelected,
-                  onChanged: (val) {
-                    setState(() {
-                      if (val!) {
-                        _selectedDefinitions.putIfAbsent(row.location, () => {})[def.phrase] = def.location;
-                      } else {
-                        _selectedDefinitions[row.location]?.remove(def.phrase);
-                      }
-                    });
-                  },
-                ),
-              );
-            }),
+            Container(width: double.maxFinite, color: Colors.grey[900], padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), child: Text("${row.word} (${row.location})", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: fs))),
+            ...definitions.map((def) => ListTile(
+              dense: true, visualDensity: VisualDensity.compact, title: _buildStyledPhrase(def),
+              trailing: Checkbox(value: _selectedDefinitions[row.location]?.containsKey(def.phrase) ?? false, onChanged: (v) {
+                setState(() { if (v!) { _selectedDefinitions.putIfAbsent(row.location, () => {})[def.phrase] = def.location; } else { _selectedDefinitions[row.location]?.remove(def.phrase); } });
+              }),
+            )),
             const Divider(height: 1),
           ],
         );
@@ -570,69 +452,17 @@ class _StudyHubViewState extends State<StudyHubView> {
     );
   }
 
-  Widget _buildConstantsGallery() {
-    return FutureBuilder<List<String>>(
-      future: _dbService.getConstants(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-        final constants = snapshot.data!;
-        return ListView.builder(
-          itemCount: constants.length,
-          itemBuilder: (context, index) {
-            final c = constants[index];
-            return ListTile(
-              title: Text(c, style: const TextStyle(fontWeight: FontWeight.bold)),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () async {
-                  await _dbService.deleteConstant(c);
-                  setState(() {});
-                },
-              ),
-              onTap: () {
-                _dictController.text = c;
-                _runInterpretation();
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
   Widget _buildBooksList() {
-    return FutureBuilder<List<String>>(
-      future: _dbService.getBooks(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-        return ListView.builder(
-          itemCount: snapshot.data!.length,
-          itemBuilder: (context, index) => ListTile(
-            title: Text(snapshot.data![index]),
-            onTap: () => widget.onJumpToLocation(snapshot.data![index]),
-          ),
-        );
-      },
-    );
+    return FutureBuilder<List<String>>(future: _dbService.getBooks(), builder: (context, snapshot) {
+      if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+      return ListView.builder(itemCount: snapshot.data!.length, itemBuilder: (context, index) => ListTile(title: Text(snapshot.data![index]), onTap: () => widget.onJumpToLocation(snapshot.data![index])));
+    });
   }
 
   Widget _buildNotesList() {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _dbService.getNotes(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-        return ListView.builder(
-          itemCount: snapshot.data!.length,
-          itemBuilder: (context, index) {
-            final n = snapshot.data![index];
-            return ListTile(
-              title: Text(n['title'] ?? 'No Title'),
-              subtitle: Text(n['location'] ?? ''),
-              onTap: () => widget.onJumpToLocation(n['location']),
-            );
-          },
-        );
-      },
-    );
+    return FutureBuilder<List<Map<String, dynamic>>>(future: _dbService.getNotes(), builder: (context, snapshot) {
+      if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+      return ListView.builder(itemCount: snapshot.data!.length, itemBuilder: (context, index) => ListTile(title: Text(snapshot.data![index]['title'] ?? 'No Title'), subtitle: Text(snapshot.data![index]['location'] ?? ''), onTap: () => widget.onJumpToLocation(snapshot.data![index]['location'])));
+    });
   }
 }

@@ -2,8 +2,8 @@
 
 ## Newfangledness in the Use of words in the Holy Bible
 The word is his identity; the same yesterday, and today and forever. God not only historical, but also real time and in the infinitive. From the 1st use, 2nd use, ..., nth use of a word; he constantly recycles himself in the usage of a word.
-The word is a placeholder for the things he wants to say. And he says what he wants to say exactly and concisely as he wants to say it. They are well-formed formulas used by the Holy Ghost, the Spirit of liberty, to give us access to every degree of freedom associated with the use of a word. Putting them in your own words is doing so at your own risk, the burden of the proof lies on you. Every man's word is his own burden.
-The Bible is a vector space of well-formed formulas that defines itself. All what we provide as explanations is dung that comes from man; for as many as desire to make a fair show in the flesh.
+The word is a placeholder for the things he wants to say. And he says what he wants to say exactly and concisely as he wants to say it. They are well-formed formulas used by the Holy Ghost, the Spirit of liberty, to give us access to every degree of freedom associated with the use of a word. Putting them in your own words is doing so at your own risk, the burden of proof lies on you. Every man's word is his own burden.
+The Bible is a vector space of well-formed formulas that defines itself. All what we provide as explanation is dung that comes from man; for as many as desire to make a fair show in the flesh: for it comes short of the glory of God.
 Biblical translations are corollaries from God, he is the Original. The Original is always with us as we are created in the image of God;
 God : man ↦ God(man) = image(God);
 e.g.

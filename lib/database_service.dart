@@ -197,29 +197,8 @@ class DatabaseService {
   }
 
   Future<int> countSearchMatches(String query) async {
-    final db = await database;
-    final cleanQuery = query.trim();
-    if (cleanQuery.isEmpty) return 0;
-    
-    if (cleanQuery.contains(',')) {
-      final parts = cleanQuery.split(',');
-      int total = 0;
-      for (var p in parts) {
-        if (BibleLogic.parseLocation(p) != null) total++;
-      }
-      if (total > 0) return total;
-    }
-
-    final loc = BibleLogic.parseLocation(cleanQuery);
-    if (loc != null) return 1;
-
-    try {
-      final ftsSafeQuery = cleanQuery.replaceAll(RegExp(r'[.,;:!?¶\(\)\[\]]'), ' ').trim();
-      if (ftsSafeQuery.isEmpty) return 0;
-      final ftsQuery = ftsSafeQuery.contains(' ') ? '"$ftsSafeQuery"' : ftsSafeQuery;
-      final results = await db.rawQuery('SELECT COUNT(*) as count FROM bible_fts WHERE content MATCH ?', [ftsQuery]);
-      return Sqflite.firstIntValue(results) ?? 0;
-    } catch (e) { return 0; }
+    final matches = await search(query);
+    return matches.length;
   }
 
   Future<List<BibleMatch>> search(String query) async {
@@ -250,20 +229,32 @@ class DatabaseService {
       final results = await db.rawQuery('SELECT b.* FROM bible b JOIN bible_fts f ON b.id = f.verse_id WHERE f.content MATCH ? ORDER BY b.id ASC', [ftsQuery]);
       final queryWords = ftsSafeQuery.toLowerCase().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
 
-      return results.map((m) {
+      List<BibleMatch> allMatches = [];
+      for (var m in results) {
         final verse = BibleVerse.fromJson(m);
         final words = verse.styledWords.map((w) => w.text.toLowerCase().replaceAll(RegExp(r'[.,;:!?¶\(\)\[\]]'), '')).toList();
-        int startWord = 1; int endWord = verse.wordCount;
+        
         for (int i = 0; i <= words.length - queryWords.length; i++) {
           bool found = true;
           for (int j = 0; j < queryWords.length; j++) { 
             if (i+j >= words.length || words[i+j] != queryWords[j]) { found = false; break; } 
           }
-          if (found) { startWord = i + 1; endWord = i + queryWords.length; break; }
+          if (found) { 
+            int startWord = i + 1; 
+            int endWord = i + queryWords.length;
+            final exactText = verse.styledWords.sublist(startWord - 1, endWord).map((w) => w.text).join(' ');
+            allMatches.add(BibleMatch(
+              phrase: exactText, 
+              location: BibleLogic.formatLocation(verse.bookAbbreviation, verse.chapter, verse.verse, startWord, endWord), 
+              verse: verse, 
+              startWord: startWord, 
+              endWord: endWord
+            ));
+            i = endWord - 1; // Move index forward to avoid overlapping duplicate detection
+          }
         }
-        final exactText = verse.styledWords.sublist(startWord - 1, endWord).map((w) => w.text).join(' ');
-        return BibleMatch(phrase: exactText, location: BibleLogic.formatLocation(verse.bookAbbreviation, verse.chapter, verse.verse, startWord, endWord), verse: verse, startWord: startWord, endWord: endWord);
-      }).toList();
+      }
+      return allMatches;
     } catch (e) { return []; }
   }
 
@@ -394,10 +385,11 @@ class DatabaseService {
   }
 
   Future<Map<String, String>> getParenthesesMap() async {
+    final RegExp punct = RegExp(r'[.,;:!?¶\(\)\[\]]');
     try {
       final String jsonString = await rootBundle.loadString('assets/PARENTHESES.json');
       final List<dynamic> data = json.decode(jsonString);
-      return { for (var item in data) item['AuxVerb'].toString().toLowerCase() : item['Symbol'].toString() };
+      return { for (var item in data) item['AuxVerb'].toString().toLowerCase().replaceAll(punct, '').trim() : item['Symbol'].toString() };
     } catch (_) { return {}; }
   }
 

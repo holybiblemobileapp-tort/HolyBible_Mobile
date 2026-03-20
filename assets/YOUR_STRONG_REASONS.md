@@ -2,28 +2,51 @@
 *Applying the Limit Table and Dictionary in the Teaching of the Holy Bible*
 
 ## Introduction
-"Produce your cause, saith the LORD; bring forth your strong reasons, saith the King of Jacob." (Isaiah 41:21)
+> "Produce your cause, saith the LORD; bring forth your strong reasons, saith the King of Jacob." (Isaiah 41:21)
 
-This material demonstrates how to apply the 4-Vector Space analysis (BookChapter:Verse:Breadth) and the Mathematics KJV logic to provide a precise, rigorous defense of Biblical teaching.
+This material provides a rigorous defense of Biblical teaching using the **Bible Vector Space** framework. By mapping the AKJV 1611 PCE into 4-Vector coordinates, we can observe the text as a system of well-formed formulas.
 
-## 1. The Limit Table (GRID)
-The Limit Table is used to observe the convergence of contextual meaning. By applying a precision value ($N$), we can observe how phrases behave as they approach a specific mathematical coordinate.
-
-### Application: Contextual Convergence
-When studying a term like "Charity", the Limit Table allows us to see all occurrences ("Witnesses") and their surrounding coordinates. This prevents "private interpretation" by forcing the teacher to account for every data point in the Bible Vector Space.
-
-## 2. The Dictionary (DICT)
-The Dictionary for the Word of God is a "Text of Application." It does not provide human definitions; rather, it provides the **Use of Words in the Holy Bible**.
-
-### How to use the Dictionary:
-1. **Search**: Enter a word or phrase (e.g., "Holy Mountain").
-2. **Observe**: Review the generated list of Inverse Relations.
-3. **Synthesis**: The definition of the word is the sum of its occurrences across the 4-Vector Space.
-
-## 3. Practical Demonstration: The "of" Grouping
-In Mathematics KJV 1, the phrase "Spirit of God" becomes `Spirit(God)`.
-- This demonstrates that "God" is the domain and "Spirit" is the function or attribute being observed within that domain.
-- By removing the linguistic noise, the **Strong Reason** for the relationship between the Father and the Spirit becomes visually and logically clear.
+### The 4-Vector Framework
+Every word is a function of its Generalized Coordinates:
+$$Word = f(H, D, L, B)$$
+- **HEIGHT (H)**: Book Index (Book)
+- **DEPTH (D)**: Chapter Index (Chapter)
+- **LENGTH (L)**: Verse Index (Verse)
+- **BREADTH (B)**: Word Index (Breadth)
 
 ---
-*This document is part of the Holy Bible Mobile Teaching Series.*
+
+## 1. The Limit Table (GRID)
+The Limit Table is a tool for observing **Contextual Convergence**. It allows the observer to see how phrases behave as they approach a specific mathematical coordinate.
+
+### Symbols of Convergence
+- **BEFORE (⟼)**: Finding occurrences where a preceding "Witness" leads to the term.
+- **AFTER (⟻)**: Finding occurrences where a succeeding "Witness" is preceded by the term.
+
+### Pedagogy of the Series
+The teacher can choose between three levels of precision:
+1. **MathKJVP (Primary)**: Foundation level; isolated symbols for maximum readability.
+2. **MathKJVS (Secondary)**: Intermediate; includes transformations after punctuation.
+3. **MathKJVT (Tertiary)**: Unconstrained vector analysis; all mapped words are replaced.
+
+---
+
+## 2. The Dictionary (DICT)
+The Dictionary is an **Inverse Relation Mapping**:
+$$Phrase \mapsto \{Locations\}$$
+
+It does not rely on human etymology but on the **Use of Words in the Holy Bible**. 
+- **The Definition**: The sum total of all occurrences of a phrase across the Bible Vector Space.
+- **WYSIWYG Consistency**: Punctuation is preserved (e.g., `charity,` vs `charity;`) to ensure the exact mathematical "state" of the word is observed.
+
+---
+
+## 3. Practical Case: The "of" Operator
+Using the **Mathematics KJV** logic, the connective "of" is treated as a function operator.
+- **Natural**: "Spirit of God"
+- **Mathematical**: `Spirit(God)`
+
+This notation visually establishes that **God** is the domain and **Spirit** is the function observed within that domain. The removal of linguistic "noise" allows the **Strong Reasons** of Biblical relationships to become logically evident.
+
+---
+*Document Index: Course Material / Mind of Christ Series*

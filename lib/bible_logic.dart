@@ -94,24 +94,54 @@ class BibleLogic {
       return continuityMap.containsKey(wordLower);
     }
 
+    // Attempt to match multi-word parenthetical phrases if parenthesesMap exists
+    Set<int> processedIndices = {};
+
     for (int i = 0; i < verse.styledWords.length; i++) {
+      if (processedIndices.contains(i)) continue;
+
       final bw = verse.styledWords[i];
       final String rawText = bw.text.replaceAll('¶', '').trim();
-      final String wordLower = rawText.toLowerCase().replaceAll(RegExp(r'[.,;:!?]'), '');
+      final String wordLower = rawText.toLowerCase().replaceAll(punctRegex, '');
       
+      // 1. Check Parentheses Overrides first
+      if (parenthesesMap != null) {
+        String? parOverride;
+        int overrideLength = 0;
+        
+        // Check for longest matching phrase starting at this word
+        for (int len = 10; len >= 1; len--) {
+          if (i + len > verse.styledWords.length) continue;
+          String phrase = verse.styledWords.sublist(i, i + len).map((w) => w.text.toLowerCase().replaceAll(punctRegex, '')).join(' ');
+          if (parenthesesMap.containsKey(phrase)) {
+            parOverride = parenthesesMap[phrase];
+            overrideLength = len;
+            break;
+          }
+        }
+
+        if (parOverride != null) {
+          result.add(MathWord(
+            original: bw,
+            displayId: '${verse.id}:${bw.index}',
+            parts: [MathPart(parOverride, isRed: true, isParenthesis: true)],
+            hasLeadingSpace: i > 0,
+          ));
+          for (int k = 0; k < overrideLength; k++) processedIndices.add(i + k);
+          continue;
+        }
+      }
+
+      // 2. Standard Continuity Logic
       String? symbol = continuityMap[wordLower];
       bool hasPunctuation = bw.text.contains(RegExp(r'[.,;:!?]'));
+      String punctuation = bw.text.replaceAll(RegExp(r'[^.,;:!?]'), '');
+      
       bool isStartOfVerse = i == 0;
       bool isOf = wordLower == 'of';
-      
       bool precededByPunctuation = i > 0 && verse.styledWords[i-1].text.contains(RegExp(r'[.,;:!?]'));
 
-      // Rules for "of" -> "()"
-      // Tertiary: ALL instances replaced
       bool inhibitOf = !isTertiary && (isStartOfVerse || (precededByPunctuation && !isSecondary) || hasPunctuation);
-      
-      // Rules for FunctionWords
-      // Tertiary: ALL instances replaced
       bool inhibitFunction = !isTertiary && (isStartOfVerse || hasPunctuation || (precededByPunctuation && !isSecondary));
 
       List<MathPart> parts = [];
@@ -119,8 +149,7 @@ class BibleLogic {
 
       if (isOf && !inhibitOf) {
         if (isTertiary && hasPunctuation) {
-          // Rule: "of" before punctuation becomes an empty ()
-          parts.add(MathPart('()', isRed: true, isParenthesis: true, isOfReplacement: true));
+          parts.add(MathPart('()$punctuation', isRed: true, isParenthesis: true, isOfReplacement: true));
           hideLeadingSpace = true;
         } else {
           parts.add(MathPart('(', isRed: true, isParenthesis: true, isOfReplacement: true));
@@ -133,22 +162,17 @@ class BibleLogic {
           openOfCount = 0;
         }
 
-        bool shouldReplace;
-        if (isTertiary) {
-          shouldReplace = true; // Tertiary: Replace ALL
-        } else if (isSecondary) {
-          shouldReplace = !isFunctionWord(i + 1) || isFunctionWord(i - 1);
-        } else {
-          shouldReplace = !isFunctionWord(i - 1);
-        }
+        bool shouldReplace = isTertiary || (isSecondary ? (!isFunctionWord(i + 1) || isFunctionWord(i - 1)) : !isFunctionWord(i - 1));
 
         if (shouldReplace) {
-          parts.add(MathPart(symbol, isRed: true));
+          parts.add(MathPart(symbol + punctuation, isRed: true));
         } else {
           parts.add(MathPart(bw.text, isItalic: bw.isItalic));
         }
       } else {
-        parts.add(MathPart(bw.text, isItalic: bw.isItalic, isParenthesis: bw.text.contains(RegExp(r'[\(\)]'))));
+        String cleanWord = bw.text.replaceAll(RegExp(r'[.,;:!?]'), '');
+        parts.add(MathPart(cleanWord, isItalic: bw.isItalic, isParenthesis: bw.text.contains(RegExp(r'[\(\)]'))));
+        if (punctuation.isNotEmpty) parts.add(MathPart(punctuation));
       }
 
       if (hasPunctuation && openOfCount > 0) {
@@ -178,6 +202,10 @@ class BibleLogic {
       return wordIndices.map((i) => verse.styledWords[i - 1].text).join(' ');
     }
     final mathWords = applyContinuity(verse, cont, parenthesesMap: par, style: style);
-    return wordIndices.map((i) => mathWords.firstWhere((mw) => mw.original.index == i).parts.map((p) => p.text).join('')).join(' ');
+    return wordIndices.map((i) {
+      final match = mathWords.where((mw) => mw.original.index == i);
+      if (match.isEmpty) return "";
+      return match.first.parts.map((p) => p.text).join('');
+    }).join(' ');
   }
 }

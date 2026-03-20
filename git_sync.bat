@@ -15,14 +15,17 @@ git add .gitattributes
 git add .
 
 :: 4. Commit Changes
-git commit -m "Final sync: On-Demand architecture and LFS"
+git commit -m "Sync: Progress on Your Strong Reasons and MathKJV stability"
 
 :: 5. Ensure branch is main
 git branch -M main
 
-:: 6. Force Push to GitHub
+:: 6. Pull and Push (Safer Sync)
+echo Pulling latest changes from GitHub...
+git pull origin main --rebase
+
 echo Uploading to GitHub... This may take time for LFS objects...
-git push origin main --force
+git push origin main
 
 echo --- PROCESS COMPLETE ---
 pause
