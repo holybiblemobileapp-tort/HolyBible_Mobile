@@ -19,10 +19,11 @@ class MathPart {
 
 class MathWord {
   final BibleWord original;
+  final int endIndex;
   final String displayId;
   final List<MathPart> parts;
   final bool hasLeadingSpace;
-  MathWord({required this.original, required this.displayId, required this.parts, this.hasLeadingSpace = true});
+  MathWord({required this.original, required this.endIndex, required this.displayId, required this.parts, this.hasLeadingSpace = true});
 }
 
 class BibleLogic {
@@ -44,7 +45,7 @@ class BibleLogic {
 
   static String getReadingLabel(BibleViewStyle style) {
     switch (style) {
-      case BibleViewStyle.standard: return 'KEY';
+      case BibleViewStyle.standard: return 'AKJV 1611 PCE';
       case BibleViewStyle.superscript: return 'ARRAY';
       case BibleViewStyle.mathematics: return 'MathKJVP';
       case BibleViewStyle.mathematics2: return 'MathKJVS';
@@ -55,8 +56,8 @@ class BibleLogic {
   static void clearCache() { _mathCache.clear(); }
 
   static String formatLocation(String bookAbbr, int chapter, int verse, int start, int end, [int? totalWords]) {
-    if (start == end && start != 0) return '$bookAbbr$chapter:$verse:$start';
     final effectiveEnd = (end == 0 && totalWords != null) ? totalWords : end;
+    if (start == effectiveEnd && start != 0) return '$bookAbbr$chapter:$verse:$start';
     if (effectiveEnd == 0) return '$bookAbbr$chapter:$verse:$start';
     return '$bookAbbr$chapter:$verse:$start-$effectiveEnd';
   }
@@ -80,10 +81,20 @@ class BibleLogic {
     final cacheKey = '${verse.id}_${style.name}';
     if (_mathCache.containsKey(cacheKey)) return _mathCache[cacheKey]!;
 
+    // Standard and Superscript use AKJV text directly without applying symbols or parentheses
+    if (style == BibleViewStyle.standard || style == BibleViewStyle.superscript) {
+      final res = verse.styledWords.map((w) => MathWord(
+        original: w, endIndex: w.index, displayId: '${verse.id}:${w.index}',
+        parts: [MathPart(w.text, isItalic: w.isItalic)],
+        hasLeadingSpace: w.index > 1,
+      )).toList();
+      _mathCache[cacheKey] = res;
+      return res;
+    }
+
     List<MathWord> result = [];
     final bool isTertiary = style == BibleViewStyle.mathematicsUnconstraint;
     final bool isSecondary = style == BibleViewStyle.mathematics2;
-    
     int openOfCount = 0;
     final RegExp punctRegex = RegExp(r'[.,;:!?¶\(\)\[\]]');
 
@@ -95,33 +106,35 @@ class BibleLogic {
     }
 
     Set<int> processedIndices = {};
+    bool hideNextLeadingSpace = false;
 
     for (int i = 0; i < verse.styledWords.length; i++) {
       if (processedIndices.contains(i)) continue;
-
       final bw = verse.styledWords[i];
       final String rawText = bw.text.replaceAll('¶', '').trim();
       final String wordLower = rawText.toLowerCase().replaceAll(punctRegex, '');
-      
+      bool currentHasLeadingSpace = i > 0 && !hideNextLeadingSpace;
+      hideNextLeadingSpace = false;
+
       if (parenthesesMap != null) {
-        String? parOverride;
-        int overrideLength = 0;
+        String? parOverride; int overrideLength = 0;
         for (int len = 10; len >= 1; len--) {
           if (i + len > verse.styledWords.length) continue;
           String phrase = verse.styledWords.sublist(i, i + len).map((w) => w.text.toLowerCase().replaceAll(punctRegex, '')).join(' ');
-          if (parenthesesMap.containsKey(phrase)) {
-            parOverride = parenthesesMap[phrase];
-            overrideLength = len;
-            break;
-          }
+          if (parenthesesMap.containsKey(phrase)) { parOverride = parenthesesMap[phrase]; overrideLength = len; break; }
         }
         if (parOverride != null) {
+          // Rule: No space before parenthesis introduced by system
+          bool suppressSpace = parOverride.startsWith('(') || parOverride.startsWith('[');
           result.add(MathWord(
-            original: bw,
-            displayId: '${verse.id}:${bw.index}',
+            original: bw, endIndex: bw.index + overrideLength - 1, displayId: '${verse.id}:${bw.index}',
             parts: [MathPart(parOverride, isRed: true, isParenthesis: true)],
-            hasLeadingSpace: i > 0,
+            hasLeadingSpace: currentHasLeadingSpace && !suppressSpace,
           ));
+          // Preservation of indices: subsequent words in phrase are marked as empty MathWords
+          for (int k = 1; k < overrideLength; k++) {
+            result.add(MathWord(original: verse.styledWords[i+k], endIndex: verse.styledWords[i+k].index, displayId: '${verse.id}:${verse.styledWords[i+k].index}', parts: [], hasLeadingSpace: false));
+          }
           for (int k = 0; k < overrideLength; k++) processedIndices.add(i + k);
           continue;
         }
@@ -130,39 +143,39 @@ class BibleLogic {
       String? symbol = continuityMap[wordLower];
       bool hasPunctuation = bw.text.contains(RegExp(r'[.,;:!?]'));
       String punctuation = bw.text.replaceAll(RegExp(r'[^.,;:!?]'), '');
-      
       bool isStartOfVerse = i == 0;
       bool isOf = wordLower == 'of';
       bool precededByPunctuation = i > 0 && verse.styledWords[i-1].text.contains(RegExp(r'[.,;:!?]'));
-
       bool inhibitOf = !isTertiary && (isStartOfVerse || (precededByPunctuation && !isSecondary) || hasPunctuation);
       bool inhibitFunction = !isTertiary && (isStartOfVerse || hasPunctuation || (precededByPunctuation && !isSecondary));
 
       List<MathPart> parts = [];
-      bool hideLeadingSpace = false;
+      bool suppressThisLeadingSpace = false;
 
       if (isOf && !inhibitOf) {
-        hideLeadingSpace = true;
-        // COLOR LOGIC: Only colour introduced parentheses if attached directly to a word (no space)
+        suppressThisLeadingSpace = true; hideNextLeadingSpace = true; // "them(of" -> "them(the"
         bool canColour = !isStartOfVerse && !precededByPunctuation;
-        
-        if (isTertiary && hasPunctuation) {
-          parts.add(MathPart('()$punctuation', isRed: canColour, isParenthesis: true, isOfReplacement: true));
-        } else {
-          parts.add(MathPart('(', isRed: canColour, isParenthesis: true, isOfReplacement: true));
-          openOfCount++;
-        }
+        if (isTertiary && hasPunctuation) { parts.add(MathPart('()$punctuation', isRed: canColour, isParenthesis: true, isOfReplacement: true)); }
+        else { parts.add(MathPart('(', isRed: canColour, isParenthesis: true, isOfReplacement: true)); openOfCount++; }
       } else if (symbol != null && !inhibitFunction) {
         if (openOfCount > 0) {
-          parts.add(MathPart(')' * openOfCount, isRed: true, isParenthesis: true, isOfReplacement: true));
+          if (result.isNotEmpty) { result.last.parts.add(MathPart(')' * openOfCount, isRed: true, isParenthesis: true, isOfReplacement: true)); }
+          else { parts.insert(0, MathPart(')' * openOfCount, isRed: true, isParenthesis: true, isOfReplacement: true)); }
           openOfCount = 0;
         }
-        bool shouldReplace = isTertiary || (isSecondary ? (!isFunctionWord(i + 1) || isFunctionWord(i - 1)) : !isFunctionWord(i - 1));
-        if (shouldReplace) {
-          parts.add(MathPart(symbol + punctuation, isRed: true));
-        } else {
-          parts.add(MathPart(bw.text, isItalic: bw.isItalic));
+        bool shouldReplace = isTertiary;
+        if (!shouldReplace) {
+          bool isIsolated = !isFunctionWord(i - 1) && !isFunctionWord(i + 1);
+          bool isFirstInSeq = !isFunctionWord(i - 1) && isFunctionWord(i + 1);
+          bool isSecondInSeq = isFunctionWord(i - 1) && !isFunctionWord(i - 2);
+          if (isSecondary) { shouldReplace = isIsolated || isSecondInSeq; }
+          else {
+            bool nearPunct = (i > 0 && verse.styledWords[i-1].text.contains(RegExp(r'[.,;:!?]'))) || (i < verse.styledWords.length - 1 && verse.styledWords[i+1].text.contains(RegExp(r'[.,;:!?]')));
+            shouldReplace = (isIsolated || isFirstInSeq) && !nearPunct;
+          }
         }
+        if (shouldReplace) { parts.add(MathPart(symbol + punctuation, isRed: true)); }
+        else { parts.add(MathPart(bw.text, isItalic: bw.isItalic)); }
       } else {
         String cleanWord = bw.text.replaceAll(RegExp(r'[.,;:!?]'), '');
         parts.add(MathPart(cleanWord, isItalic: bw.isItalic, isParenthesis: bw.text.contains(RegExp(r'[\(\)]'))));
@@ -175,31 +188,45 @@ class BibleLogic {
       }
 
       result.add(MathWord(
-        original: bw,
-        displayId: '${verse.id}:${bw.index}',
-        parts: parts,
-        hasLeadingSpace: i > 0 && !hideLeadingSpace,
+        original: bw, endIndex: bw.index, displayId: '${verse.id}:${bw.index}',
+        parts: parts, hasLeadingSpace: currentHasLeadingSpace && !suppressThisLeadingSpace,
       ));
     }
-
-    if (openOfCount > 0 && result.isNotEmpty) {
-      result.last.parts.add(MathPart(')' * openOfCount, isRed: true, isParenthesis: true, isOfReplacement: true));
-    }
-
+    if (openOfCount > 0 && result.isNotEmpty) { result.last.parts.add(MathPart(')' * openOfCount, isRed: true, isParenthesis: true, isOfReplacement: true)); }
     if (_mathCache.length > _maxCacheSize) _mathCache.remove(_mathCache.keys.first);
     _mathCache[cacheKey] = result;
     return result;
   }
 
   static String getStyledPhrase(BibleVerse verse, List<int> wordIndices, BibleViewStyle style, Map<String, String> cont, Map<String, String> par) {
-    if (style == BibleViewStyle.standard) {
-      return wordIndices.map((i) => verse.styledWords[i - 1].text).join(' ');
+    if (wordIndices.isEmpty) return "";
+    if (style == BibleViewStyle.standard) { return wordIndices.map((i) => verse.styledWords[i - 1].text).join(' '); }
+    if (style == BibleViewStyle.superscript) {
+      return wordIndices.map((i) {
+        final w = verse.styledWords[i - 1];
+        final punctuation = w.text.replaceAll(RegExp(r'[^.,;:!?]'), '');
+        final cleanWord = w.text.replaceAll(RegExp(r'[.,;:!?]'), '');
+        return "$cleanWord$i$punctuation";
+      }).join(' ');
     }
     final mathWords = applyContinuity(verse, cont, parenthesesMap: par, style: style);
-    return wordIndices.map((i) {
-      final match = mathWords.where((mw) => mw.original.index == i);
-      if (match.isEmpty) return "";
-      return match.first.parts.map((p) => p.text).join('');
-    }).join(' ');
+    List<MathWord> filtered = []; Set<int> seenIndices = {};
+    for (int i in wordIndices) {
+      if (seenIndices.contains(i)) continue;
+      final match = mathWords.where((mw) => i >= mw.original.index && i <= mw.endIndex);
+      if (match.isNotEmpty) {
+        final mw = match.first; filtered.add(mw);
+        for (int idx = mw.original.index; idx <= mw.endIndex; idx++) seenIndices.add(idx);
+      }
+    }
+    if (filtered.isEmpty) return "";
+    StringBuffer sb = StringBuffer();
+    for (int i = 0; i < filtered.length; i++) {
+      final mw = filtered[i]; String content = mw.parts.map((p) => p.text).join('');
+      if (content.isEmpty) continue;
+      if (i > 0 && mw.hasLeadingSpace) sb.write(" ");
+      sb.write(content);
+    }
+    return sb.toString();
   }
 }

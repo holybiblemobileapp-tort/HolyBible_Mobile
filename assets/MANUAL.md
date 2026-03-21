@@ -3,13 +3,13 @@
 ## Newfangledness in the Use of words in the Holy Bible
 The word is his identity; the same yesterday, and today and forever. God not only historical, but also real time and in the infinitive. From the 1st use, 2nd use, ..., nth use of a word; he constantly recycles himself in the usage of a word.
 The word is a placeholder for the things he wants to say. And he says what he wants to say exactly and concisely as he wants to say it. They are well-formed formulas used by the Holy Ghost, the Spirit of liberty, to give us access to every degree of freedom associated with the use of a word. Putting them in your own words is doing so at your own risk, the burden of proof lies on you. Every man's word is his own burden.
-The Bible is a vector space of well-formed formulas that defines itself. All what we provide as explanation is dung that comes from man; for as many as desire to make a fair show in the flesh: for it comes short of the glory of God.
+The Bible is a vector space of well-formed formulas that define itself. All what we provide as explanation is dung that comes from man; for as many as desire to make a fair show in the flesh: for all have transgressed against me, and come short of the glory of God.
 Biblical translations are corollaries from God, he is the Original. The Original is always with us as we are created in the image of God;
 God : man ↦ God(man) = image(God);
 e.g.
 God : Abraham ↦ God(Abraham),
 God : Isaac ↦ God(Isaac),
-God : Jacob ↦ God(Jacob).  The Hebrew and Greek Texts are also corollaries. In choosing a translation, as the Versification reveals, you choose your Frame of Reference from which you will observe the Original.
+God : Jacob ↦ God(Jacob).  The Hebrew and Greek Texts are also corollaries. In choosing a translation of the Bible, as the Versification reveals, you choose your Frame of Reference from which you will observe the Original; our epistle written in our hearts, not with ink, but with the Spirit(the living God); in fleshy tables(the heart),  (2Co3:2:3-8, 2Co3:3:17-27, 2Co3:3:34-39).
 In the Use of words in the Holy Bible, location of a word in the Bible takes precedence over etymology. Before man began using words, God is. God is that Frame where every word is at rest; he speaks to put them in motion. With men a word might be archaic, but not with God. With God they are the jargon of the Word of God. The disciple whom the Lord loved was abreast with him.
 
 ## Mathematics KJV Pedagogy
