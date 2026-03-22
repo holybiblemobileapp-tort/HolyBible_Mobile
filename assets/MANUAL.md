@@ -18,12 +18,12 @@ This manual details the three-tier mathematical framework used to process the Au
 ### 1. Mathematics KJV Primary
 Designed for foundational learning. 
 - **FunctionWords**: Replaces isolated words and the 1st word in a consecutive sequence. Replacement is inhibited near punctuation for maximum readability.
-- **Parentheses**: Replaces "of" with `()` except at the start/end of phrases.
+- **Parentheses**: Replaces "of" with `()`. **Note**: Preceding whitespace is eliminated to maintain functional integrity (e.g., `them(of` becomes `them(the`).
 
 ### 2. Mathematics KJV Secondary
 Designed for intermediate analysis.
 - **FunctionWords**: Replaces isolated words and the 2nd word in a consecutive sequence. Allows replacement immediately after punctuation.
-- **Parentheses**: Replaces "of" even after punctuation marks to show secondary phrase connections.
+- **Parentheses**: Replaces "of" even after punctuation marks to show secondary phrase connections. Whitespace is strictly eliminated.
 
 ### 3. Mathematics KJV Tertiary
 Designed for advanced unconstrained vector analysis.
@@ -41,9 +41,9 @@ The 4-Vector versification makes each word a function of its location in the Bib
 - **Length ($L$):** The Verse index within the chapter.
 - **Breadth ($B$):** The Word index (Index) within the verse.
 
-#### 2. Book Abbreviation Convention
-- First 3 Characters are used. 
-- Single-chapter books use **CHAPTER 0** (e.g., `Jud0` for Jude).
+#### 2. Preface Formatting
+- **Titles (Verse 0)**: Rendered in **Bold** and increased scale for structural clarity.
+- **Paragraphs**: Defined by the `¶` symbol to maintain the logic of the original PCE text.
 
 #### 3. Radiant Rendering (Neon Glow)
 - **Cyan/Blue Bloom**: Represents the mathematical field breadth.
@@ -59,4 +59,4 @@ The 4-Vector versification makes each word a function of its location in the Bib
 - **Input**: `holy mountain` ↦ `{Isa11:9:10-11, ...}`
 
 #### Search Filtering
-Use small ranges (e.g., 1-10) for smoother and faster App performance.
+The **Limit Table (GRID)** observes contextual convergence between "Witnesses" (WTOTAG) and the term (CSTWS) with strict 1-1 alignment. Use small ranges (e.g., 1-10) for faster generation.

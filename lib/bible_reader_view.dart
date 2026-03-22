@@ -175,7 +175,7 @@ class _BibleReaderViewState extends State<BibleReaderView> {
       combinedTextParts.add(segmentText.join(' '));
       combinedLocParts.add(segmentLocs.join('_'));
     }
-    return "${combinedTextParts.join(' ')} (${combinedLocParts.join(', ')})";
+    return "${combinedTextParts.join(' ')}(${combinedLocParts.join(', ')})";
   }
 
   void _shareContent(Set<String> selection) {
@@ -263,13 +263,53 @@ class _BibleReaderViewState extends State<BibleReaderView> {
 
   Widget _buildPrefaceView() {
     final List<Widget> items = [];
-    List<BibleVerse> currentParagraph = [];
-    for (var v in widget.allVersesOfChapter) {
-      if (widget.chapter == 0) {
-        items.add(_buildParagraph([v], center: true, isTitle: v.verse == 0));
-      } else {
+    if (widget.chapter == 0) {
+      // Chapter 0: Title Page
+      for (var v in widget.allVersesOfChapter) {
+        double scale = 1.0; bool isItalic = false; bool isBold = false; bool skip = false;
+        switch (v.verse) {
+          case 0: skip = true; break; // Hide "TITLE"
+          case 1: scale = 0.85; break; // THE
+          case 2: scale = 2.4; isBold = true; break; // HOLY BIBLE
+          case 3: scale = 0.85; break; // CONTAINING THE
+          case 4: scale = 1.5; isBold = true; break; // OLD AND NEW TESTAMENTS
+          case 5: case 6: case 7: case 8: scale = 0.95; break;
+          case 9: scale = 1.0; isItalic = true; break;
+          case 10: case 11: scale = 1.1; break;
+          default: scale = 0.8;
+        }
+        if (!skip) {
+          items.add(_buildParagraph([v], center: true, customScale: scale, forceItalic: isItalic, forceBold: isBold));
+        }
+      }
+    } else if (widget.chapter == 1) {
+      // Chapter 1: Epistle Dedicatory
+      List<BibleVerse> currentParagraph = [];
+      for (int i = 0; i < widget.allVersesOfChapter.length; i++) {
+        final v = widget.allVersesOfChapter[i];
+        if (v.verse == 0) {
+          // Section 2 Header: Pre1:0
+          items.add(_buildParagraph([v], center: true, customScale: 1.4, forceBold: true));
+          items.add(const SizedBox(height: 24));
+        } else if (v.verse >= 1 && v.verse <= 7) {
+          // Text Style 1: Pre1:1-7 (7 lines WYSIWYG)
+          items.add(_buildParagraph([v], center: true, customScale: 1.1, forceBold: true));
+        } else {
+          // SECTION 2 BODY Text Style 2: Pre1:8-62 Concatenated Paragraphs
+          currentParagraph.add(v);
+          if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) {
+            items.add(_buildParagraph(currentParagraph));
+            currentParagraph = [];
+          }
+        }
+      }
+    } else {
+      // Other chapters
+      List<BibleVerse> currentParagraph = [];
+      for (int i = 0; i < widget.allVersesOfChapter.length; i++) {
+        final v = widget.allVersesOfChapter[i];
         currentParagraph.add(v);
-        if (v.text.contains('¶') || v.verse == widget.allVersesOfChapter.last.verse) {
+        if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) {
           items.add(_buildParagraph(currentParagraph));
           currentParagraph = [];
         }
@@ -278,31 +318,26 @@ class _BibleReaderViewState extends State<BibleReaderView> {
     return ListView(controller: _scrollController, padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8), children: items);
   }
 
-  Widget _buildParagraph(List<BibleVerse> verses, {bool center = false, bool isTitle = false}) {
+  Widget _buildParagraph(List<BibleVerse> verses, {bool center = false, double customScale = 1.0, bool forceItalic = false, bool forceBold = false}) {
     List<Widget> wordWidgets = [];
+    bool isFirstWordOfParagraph = true;
     for (var v in verses) {
-      double fontSize = widget.fontSize;
-      if (isTitle) fontSize *= 1.5;
+      double baseSize = widget.fontSize * customScale;
       final mathWords = BibleLogic.applyContinuity(v, widget.continuityMap, parenthesesMap: widget.parenthesesMap, style: widget.currentStyle);
-      
       for (var mw in mathWords) {
-        wordWidgets.add(_renderWord(v, mw, customSize: fontSize, isBold: isTitle));
+        wordWidgets.add(_renderWord(v, mw, customSize: baseSize, isBold: forceBold, isItalic: forceItalic, forceSpace: !isFirstWordOfParagraph && mw.original.index == 1));
+        isFirstWordOfParagraph = false;
       }
-      if (v.text.contains('¶')) wordWidgets.add(const Text('¶ ', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)));
     }
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        color: isTitle ? Colors.brown.withOpacity(0.05) : null,
-        borderRadius: BorderRadius.circular(8),
-      ),
       alignment: center ? Alignment.center : Alignment.centerLeft,
-      child: Wrap(alignment: center ? WrapAlignment.center : WrapAlignment.start, spacing: 0, runSpacing: 6, children: wordWidgets)
+      child: Wrap(alignment: center ? WrapAlignment.center : WrapAlignment.start, spacing: 0, runSpacing: 4, children: wordWidgets)
     );
   }
 
-  Widget _renderWord(BibleVerse v, MathWord mw, {double? customSize, bool isBold = false}) {
+  Widget _renderWord(BibleVerse v, MathWord mw, {double? customSize, bool isBold = false, bool isItalic = false, bool forceSpace = false}) {
     final wordId = '${v.id}:${mw.original.index}';
     final bool isMath = widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript;
     return ValueListenableBuilder<String?>(valueListenable: _activeWordNotifier, builder: (context, activeId, _) {
@@ -317,19 +352,20 @@ class _BibleReaderViewState extends State<BibleReaderView> {
           child: Container(
             decoration: BoxDecoration(color: isSelected ? Colors.blue.withOpacity(0.3) : (isActive ? Colors.amber.withOpacity(0.4) : Colors.transparent), borderRadius: BorderRadius.circular(2)),
             child: RichText(text: TextSpan(children: [
-              if (mw.hasLeadingSpace) const TextSpan(text: ' '),
+              if (mw.hasLeadingSpace || forceSpace) const TextSpan(text: ' '),
               ...mw.parts.map((p) {
                 if (widget.currentStyle == BibleViewStyle.superscript && !p.isParenthesis) {
                    return TextSpan(children: [
-                     TextSpan(text: p.text, style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black, fontSize: customSize ?? widget.fontSize, fontStyle: p.isItalic ? FontStyle.italic : FontStyle.normal, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+                     TextSpan(text: p.text, style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black, fontSize: customSize ?? widget.fontSize, fontStyle: (p.isItalic || isItalic) ? FontStyle.italic : FontStyle.normal, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
                      WidgetSpan(child: Transform.translate(offset: const Offset(0, -8), child: Text('${mw.original.index}', style: TextStyle(fontSize: (customSize ?? widget.fontSize) * 0.55, color: Colors.blue, fontWeight: FontWeight.bold)))),
                    ]);
                 }
+                final bool isPilcrow = p.text.contains('¶');
                 return TextSpan(text: p.text, style: TextStyle(
-                  color: p.isRed ? symbolColor : (isMath || widget.isDarkMode ? Colors.white : Colors.black),
+                  color: isPilcrow ? Colors.red : (p.isRed ? symbolColor : (isMath || widget.isDarkMode ? Colors.white : Colors.black)),
                   fontSize: customSize ?? widget.fontSize,
-                  fontWeight: (p.isRed || isBold) ? FontWeight.bold : FontWeight.normal,
-                  fontStyle: p.isItalic ? FontStyle.italic : FontStyle.normal,
+                  fontWeight: (isPilcrow || p.isRed || isBold) ? FontWeight.bold : FontWeight.normal,
+                  fontStyle: (p.isItalic || isItalic) ? FontStyle.italic : FontStyle.normal,
                   fontFamily: isMath ? 'Courier' : null,
                   shadows: p.isRed && isMath ? [Shadow(blurRadius: 2.0, color: symbolColor)] : null,
                 ));
@@ -373,5 +409,5 @@ class _BibleReaderViewState extends State<BibleReaderView> {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Start point set. Tap another word to select range.'), duration: Duration(seconds: 1)));
   }
 
-  Widget _buildAudioControls() { return Container(color: Colors.brown[50], padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => widget.onChapterChange(widget.chapter - 1)), IconButton(icon: const Icon(Icons.play_arrow, size: 48), onPressed: () {}), IconButton(icon: const Icon(Icons.arrow_forward), onPressed: () => widget.onChapterChange(widget.chapter + 1))])); }
+  Widget _buildAudioControls() { return Container(color: Colors.brown[50], padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => widget.onChapterChange(widget.chapter - 1)), IconButton(icon: const Icon(Icons.play_arrow, size: 48), onPressed: () {}), IconButton(icon: const Icon(Icons.play_arrow, size: 48), onPressed: () {}), IconButton(icon: const Icon(Icons.arrow_forward), onPressed: () => widget.onChapterChange(widget.chapter + 1))])); }
 }
