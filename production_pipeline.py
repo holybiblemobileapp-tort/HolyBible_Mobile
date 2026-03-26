@@ -5,7 +5,8 @@ import base64
 import requests
 
 # --- CONFIGURATION ---
-API_KEY = "sk_82205ab653074fe7a8545f286d2ea5403c14acc8d828e67b"
+# Use environment variables for security in Open Source projects
+API_KEY = os.environ.get("ELEVENLABS_API_KEY", "your_api_key_here")
 VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
 
 BIBLE_JSON_PATH = "assets/Bible.json"
@@ -30,6 +31,9 @@ def list_available_voices():
     return []
 
 def get_chapter_text(book_abbr, chapter):
+    if not os.path.exists(BIBLE_JSON_PATH):
+        print(f"Error: {BIBLE_JSON_PATH} not found.")
+        return None
     with open(BIBLE_JSON_PATH, 'r', encoding='utf-8') as f:
         data = json.load(f)
     chapter_verses = [v for v in data if v.get('BN') == book_abbr and int(v.get('CHAPTER', 0)) == chapter]
@@ -43,6 +47,10 @@ def get_chapter_text(book_abbr, chapter):
     return " ".join(full_text)
 
 def generate_voice_with_timestamps(text, filename, voice_id):
+    if API_KEY == "your_api_key_here":
+        print("Error: ELEVENLABS_API_KEY environment variable not set.")
+        return None, None
+
     print(f"Generating voice & timestamps for {filename} using voice {voice_id}...")
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps"
     headers = {"Content-Type": "application/json", "xi-api-key": API_KEY}
@@ -80,7 +88,12 @@ def generate_voice_with_timestamps(text, filename, voice_id):
 def encode_to_ogg(input_audio, output_ogg):
     print(f"Encoding {output_ogg}...")
     # Switched to .ogg container which is more compatible with Windows Media Foundation
-    subprocess.run(["ffmpeg", "-i", input_audio, "-c:a", "libopus", "-b:a", "32k", "-vbr", "on", "-y", output_ogg], check=True, capture_output=True)
+    try:
+        subprocess.run(["ffmpeg", "-i", input_audio, "-c:a", "libopus", "-b:a", "32k", "-vbr", "on", "-y", output_ogg], check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error encoding to ogg: {e}")
+    except FileNotFoundError:
+        print("Error: ffmpeg not found in PATH.")
 
 def process_chapter(book_abbr, chapter):
     ensure_dirs()
@@ -97,4 +110,6 @@ def process_chapter(book_abbr, chapter):
         print(f"\nSUCCESS: Produced {filename}.ogg and {filename}.json")
 
 if __name__ == "__main__":
-    process_chapter("Gen", 1)
+    # Example usage
+    # process_chapter("Gen", 1)
+    pass

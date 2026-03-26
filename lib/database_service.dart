@@ -14,12 +14,12 @@ class BibleMatch {
   final BibleVerse verse;
   final int startWord;
   final int endWord;
-  BibleMatch({required this.phrase, required this.location, required this.verse, required this.startWord, required this.endWord});
+   BibleMatch({required this.phrase, required this.location, required this.verse, required this.startWord, required this.endWord});
 }
 
 class WitnessPair {
-  final BibleMatch witness; // WTOTAG
-  final BibleMatch spiritual; // CSTWS
+  final BibleMatch witness; 
+  final BibleMatch spiritual; 
   WitnessPair({required this.witness, required this.spiritual});
 }
 
@@ -176,16 +176,18 @@ class DatabaseService {
 
       if (includeBefore) {
         bool foundBest = false;
-        for (int curN = n; curN >= 2 && !foundBest; curN--) {
+        // Expanded to N=1 to include single-word functional continuity
+        for (int curN = n; curN >= 1 && !foundBest; curN--) {
           int startIdx = loc.startWord - curN;
           if (startIdx >= 1) {
             int actualStart = startIdx;
             for (int i = loc.startWord - 1; i >= startIdx; i--) { if (verse.styledWords[i - 1].text.contains(_terminalPunct)) { actualStart = i + 1; break; } }
-            if (loc.startWord - actualStart >= 2) {
-              String phrase = verse.styledWords.sublist(actualStart - 1, loc.startWord - 1).map((w) => w.text).join(' ');
+            
+            String phrase = verse.styledWords.sublist(actualStart - 1, loc.startWord - 1).map((w) => w.text).join(' ');
+            if (phrase.trim().isNotEmpty) {
               final contextMatches = await search(phrase);
               if (contextMatches.length > 1) {
-                for (var m in contextMatches.take(100)) {
+                for (var m in contextMatches.take(50)) {
                   final mLoc = BibleLogic.parseLocation(m.location); if (mLoc == null) continue;
                   int targetStart = mLoc.endWord + 1;
                   if (targetStart <= m.verse.wordCount) {
@@ -203,17 +205,19 @@ class DatabaseService {
 
       if (includeAfter) {
         bool foundBest = false;
-        for (int curN = n; curN >= 2 && !foundBest; curN--) {
+        // Expanded to N=1
+        for (int curN = n; curN >= 1 && !foundBest; curN--) {
           int startIdxAfter = loc.endWord == 0 ? loc.startWord : loc.endWord;
           int endIdx = startIdxAfter + curN;
           if (endIdx <= verse.wordCount) {
             int actualEnd = endIdx;
             for (int i = startIdxAfter + 1; i <= endIdx; i++) { if (verse.styledWords[i - 1].text.contains(_terminalPunct)) { actualEnd = i; break; } }
-            if (actualEnd - startIdxAfter >= 2) {
-              String phrase = verse.styledWords.sublist(startIdxAfter, actualEnd).map((w) => w.text).join(' ');
+            
+            String phrase = verse.styledWords.sublist(startIdxAfter, actualEnd).map((w) => w.text).join(' ');
+            if (phrase.trim().isNotEmpty) {
               final contextMatches = await search(phrase);
               if (contextMatches.length > 1) {
-                for (var m in contextMatches.take(100)) {
+                for (var m in contextMatches.take(50)) {
                   final mLoc = BibleLogic.parseLocation(m.location); if (mLoc == null) continue;
                   int targetEnd = mLoc.startWord - 1;
                   if (targetEnd >= 1) {

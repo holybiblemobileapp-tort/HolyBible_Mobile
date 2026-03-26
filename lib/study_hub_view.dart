@@ -94,7 +94,7 @@ class _StudyHubViewState extends State<StudyHubView> {
       int? limit; int? offset;
       if (_subsetStart != null && _subsetEnd != null) {
         offset = (_subsetStart! - 1).clamp(0, 100000);
-        limit = (_subsetEnd! - offset).clamp(1, 100000); // Fixed charity count +1 bug
+        limit = (_subsetEnd! - offset).clamp(1, 100000); 
       }
       final results = await _dbService.getVectorSpaceGrid(
         query, n: _nValue.toInt(),
@@ -129,27 +129,34 @@ class _StudyHubViewState extends State<StudyHubView> {
     final double fs = widget.fontSize * 0.7;
     final locationStyle = TextStyle(fontSize: fs * 0.7, color: widget.isDarkMode ? Colors.amber[200] : Colors.grey[700], fontFamily: 'Courier');
     final bulletStr = isBullet ? "◦ " : "";
-    if (widget.currentStyle == BibleViewStyle.standard) return Text("$bulletStr${m.phrase}(${m.location})", style: TextStyle(fontSize: fs, color: widget.isDarkMode ? Colors.white70 : Colors.black87));
-    if (widget.currentStyle == BibleViewStyle.superscript) {
-      return RichText(text: TextSpan(children: [
-        if (isBullet) TextSpan(text: "◦ ", style: TextStyle(fontSize: fs, color: Colors.grey)),
-        ...m.verse.styledWords.sublist(m.startWord - 1, m.endWord).expand((w) => [
-          TextSpan(text: w.text, style: TextStyle(color: widget.isDarkMode ? Colors.white70 : Colors.black, fontSize: fs, fontStyle: w.isItalic ? FontStyle.italic : FontStyle.normal)),
-          WidgetSpan(child: Transform.translate(offset: const Offset(0, -5), child: Text('${w.index}', style: TextStyle(fontSize: fs * 0.6, color: Colors.blue)))),
-          const TextSpan(text: ' '),
-        ]),
-        TextSpan(text: "(${m.location})", style: locationStyle),
-      ]));
+    
+    String styledText = BibleLogic.getStyledPhrase(
+      m.verse, 
+      List.generate(m.endWord - m.startWord + 1, (i) => m.startWord + i), 
+      widget.currentStyle, 
+      widget.continuityMap, 
+      widget.parenthesesMap
+    );
+
+    if (widget.currentStyle == BibleViewStyle.standard) {
+      return Text("$bulletStr$styledText(${m.location})", style: TextStyle(fontSize: fs, color: widget.isDarkMode ? Colors.white70 : Colors.black87));
     }
-    final words = BibleLogic.applyContinuity(m.verse, widget.continuityMap, parenthesesMap: widget.parenthesesMap, style: widget.currentStyle);
-    final selectedWords = words.where((mw) => mw.original.index >= m.startWord && mw.original.index <= m.endWord).toList();
+
+    final bool isMath = widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript;
+
     return RichText(text: TextSpan(children: [
       if (isBullet) TextSpan(text: "◦ ", style: TextStyle(fontSize: fs, color: Colors.grey)),
-      ...selectedWords.expand((mw) => [
-        if (mw.hasLeadingSpace) const TextSpan(text: ' '),
-        ...mw.parts.map((p) => TextSpan(text: p.text, style: TextStyle(color: p.isRed ? Colors.redAccent : (widget.isDarkMode || widget.currentStyle != BibleViewStyle.standard ? Colors.white : Colors.black), fontSize: fs, fontWeight: FontWeight.bold, fontFamily: 'Courier', shadows: [Shadow(blurRadius: 2.0, color: p.isRed ? Colors.red : Colors.cyanAccent)])))
-      ]),
-      TextSpan(text: "(${m.location})", style: locationStyle),
+      TextSpan(
+        text: styledText, 
+        style: TextStyle(
+          color: isMath ? Colors.white : (widget.isDarkMode ? Colors.white70 : Colors.black), 
+          fontSize: fs, 
+          fontFamily: isMath ? 'Courier' : null,
+          fontWeight: isMath ? FontWeight.bold : FontWeight.normal,
+          shadows: isMath ? [Shadow(blurRadius: 2.0, color: Colors.cyanAccent)] : null,
+        )
+      ),
+      TextSpan(text: " (${m.location})", style: locationStyle),
     ]));
   }
 
@@ -167,15 +174,30 @@ class _StudyHubViewState extends State<StudyHubView> {
         int totalSubRows = max(row.witnessesBefore.length, row.witnessesAfter.length);
         if (totalSubRows == 0) totalSubRows = 1;
         for (int i = 0; i < totalSubRows; i++) {
-          String line = "${row.word} | ${row.location}";
+          final loc = BibleLogic.parseLocation(row.location);
+          String styledBibleWord = row.word;
+          if (loc != null) {
+             final matches = await _dbService.search(row.location);
+             if (matches.isNotEmpty) {
+               styledBibleWord = BibleLogic.getStyledPhrase(matches.first.verse, [loc.startWord], widget.currentStyle, widget.continuityMap, widget.parenthesesMap);
+             }
+          }
+
+          String line = "$styledBibleWord | ${row.location}";
           if (_selectedDirection != VectorDirection.after) {
-            String wb = i < row.witnessesBefore.length ? "${row.witnessesBefore[i].witness.phrase}(${row.witnessesBefore[i].witness.location})" : "";
-            String sbCol = i < row.witnessesBefore.length ? "${row.witnessesBefore[i].spiritual.phrase}(${row.witnessesBefore[i].spiritual.location})" : "";
+            String wb = ""; String sbCol = "";
+            if (i < row.witnessesBefore.length) {
+               wb = BibleLogic.getStyledPhrase(row.witnessesBefore[i].witness.verse, List.generate(row.witnessesBefore[i].witness.endWord - row.witnessesBefore[i].witness.startWord + 1, (j) => row.witnessesBefore[i].witness.startWord + j), widget.currentStyle, widget.continuityMap, widget.parenthesesMap) + "(${row.witnessesBefore[i].witness.location})";
+               sbCol = BibleLogic.getStyledPhrase(row.witnessesBefore[i].spiritual.verse, List.generate(row.witnessesBefore[i].spiritual.endWord - row.witnessesBefore[i].spiritual.startWord + 1, (j) => row.witnessesBefore[i].spiritual.startWord + j), widget.currentStyle, widget.continuityMap, widget.parenthesesMap) + "(${row.witnessesBefore[i].spiritual.location})";
+            }
             line += " | $wb | $sbCol";
           }
           if (_selectedDirection != VectorDirection.before) {
-            String wa = i < row.witnessesAfter.length ? "${row.witnessesAfter[i].witness.phrase}(${row.witnessesAfter[i].witness.location})" : "";
-            String sa = i < row.witnessesAfter.length ? "${row.witnessesAfter[i].spiritual.phrase}(${row.witnessesAfter[i].spiritual.location})" : "";
+            String wa = ""; String sa = "";
+            if (i < row.witnessesAfter.length) {
+               wa = BibleLogic.getStyledPhrase(row.witnessesAfter[i].witness.verse, List.generate(row.witnessesAfter[i].witness.endWord - row.witnessesAfter[i].witness.startWord + 1, (j) => row.witnessesAfter[i].witness.startWord + j), widget.currentStyle, widget.continuityMap, widget.parenthesesMap) + "(${row.witnessesAfter[i].witness.location})";
+               sa = BibleLogic.getStyledPhrase(row.witnessesAfter[i].spiritual.verse, List.generate(row.witnessesAfter[i].spiritual.endWord - row.witnessesAfter[i].spiritual.startWord + 1, (j) => row.witnessesAfter[i].spiritual.startWord + j), widget.currentStyle, widget.continuityMap, widget.parenthesesMap) + "(${row.witnessesAfter[i].spiritual.location})";
+            }
             line += " | $wa | $sa";
           }
           sb.writeln(line);
@@ -187,7 +209,26 @@ class _StudyHubViewState extends State<StudyHubView> {
       sb.writeln("--- DICTIONARY ENTRIES ---");
       for (var entry in _selectedDefinitions.entries) {
         final row = _vectorSpaceRows.firstWhere((r) => r.location == entry.key);
-        for (var def in entry.value.entries) sb.writeln("${row.word}(${entry.key}) = ${def.key}(${def.value})");
+        for (var def in entry.value.entries) {
+           final loc = BibleLogic.parseLocation(entry.key);
+           String styledTerm = row.word;
+           if (loc != null) {
+              final matches = await _dbService.search(entry.key);
+              if (matches.isNotEmpty) {
+                styledTerm = BibleLogic.getStyledPhrase(matches.first.verse, [loc.startWord], widget.currentStyle, widget.continuityMap, widget.parenthesesMap);
+              }
+           }
+           
+           final defLoc = BibleLogic.parseLocation(def.value);
+           String styledDef = def.key;
+           if (defLoc != null) {
+              final defMatches = await _dbService.search(def.value);
+              if (defMatches.isNotEmpty) {
+                styledDef = BibleLogic.getStyledPhrase(defMatches.first.verse, List.generate(defLoc.endWord - defLoc.startWord + 1, (j) => defLoc.startWord + j), widget.currentStyle, widget.continuityMap, widget.parenthesesMap);
+              }
+           }
+           sb.writeln("$styledTerm(${entry.key}) = $styledDef(${def.value})");
+        }
       }
     }
     Clipboard.setData(ClipboardData(text: sb.toString()));

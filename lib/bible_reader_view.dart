@@ -1,45 +1,47 @@
 import 'dart:math';
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'bible_model.dart';
 import 'bible_logic.dart';
 import 'audio_service.dart';
-import 'download_service.dart';
 
 class BibleReaderView extends StatefulWidget {
+  final List<BibleVerse> allVersesOfChapter;
   final String bookName;
   final int chapter;
-  final List<BibleVerse> allVersesOfChapter;
+  final double fontSize;
+  final bool isDarkMode;
   final BibleViewStyle currentStyle;
   final Map<String, String> continuityMap;
   final Map<String, String> parenthesesMap;
+  final bool isAudioEnabled;
+  final AudioService audioService;
+  final Function(double) onFontSizeChanged;
+  final Function(bool) onAudioChanged;
   final int? targetVerse;
   final int? targetWordIndex;
-  final AudioService audioService;
-  final bool isAudioEnabled;
-  final double fontSize;
-  final bool isDarkMode;
   final String? highlightPhrase;
-  final Function(int) onChapterChange;
+  final Function(int)? onChapterChange;
 
   const BibleReaderView({
     super.key,
+    required this.allVersesOfChapter,
     required this.bookName,
     required this.chapter,
-    required this.allVersesOfChapter,
+    required this.fontSize,
+    required this.isDarkMode,
     required this.currentStyle,
     required this.continuityMap,
     required this.parenthesesMap,
+    required this.isAudioEnabled,
+    required this.audioService,
+    required this.onFontSizeChanged,
+    required this.onAudioChanged,
     this.targetVerse,
     this.targetWordIndex,
-    required this.audioService,
-    required this.isAudioEnabled,
-    required this.fontSize,
-    required this.isDarkMode,
     this.highlightPhrase,
-    required this.onChapterChange,
+    this.onChapterChange,
   });
 
   @override
@@ -48,214 +50,223 @@ class BibleReaderView extends StatefulWidget {
 
 class _BibleReaderViewState extends State<BibleReaderView> {
   final ScrollController _scrollController = ScrollController();
-  final Map<int, GlobalKey> _verseKeys = {};
-  final ValueNotifier<String?> _activeWordNotifier = ValueNotifier<String?>(null);
-  final ValueNotifier<Set<String>> _selectionNotifier = ValueNotifier<Set<String>>({});
-  StreamSubscription? _audioSubscription;
+  final ValueNotifier<Set<String>> _selectionNotifier = ValueNotifier({});
+  final ValueNotifier<String?> _activeWordNotifier = ValueNotifier(null);
   String? _anchorWordId;
-  String? _lastScrolledId;
-  int _scrollRetryCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _rebuildKeys();
-    _audioSubscription = widget.audioService.currentFragmentIdStream.listen((id) {
-      if (mounted && id != _activeWordNotifier.value) {
-        _activeWordNotifier.value = id;
-        if (id != null) _scrollToId(id);
-      }
+    widget.audioService.currentFragmentIdStream.listen((id) {
+      if (mounted) _activeWordNotifier.value = id;
     });
-    if (widget.targetVerse != null) _triggerInitialScroll();
-  }
-
-  void _rebuildKeys() {
-    _verseKeys.clear();
-    for (var v in widget.allVersesOfChapter) {
-      _verseKeys[v.id] = GlobalKey();
+    
+    if (widget.targetVerse != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToTarget());
     }
-  }
-
-  void _triggerInitialScroll() {
-    _scrollRetryCount = 0;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future.delayed(const Duration(milliseconds: 300), _attemptScroll);
-    });
-  }
-
-  void _attemptScroll() {
-    if (!mounted || widget.targetVerse == null) return;
-    try {
-      final verse = widget.allVersesOfChapter.firstWhere((v) => v.verse == widget.targetVerse);
-      _scrollToId("${verse.id}:${widget.targetWordIndex ?? 1}", force: true);
-    } catch (_) {}
   }
 
   @override
   void didUpdateWidget(BibleReaderView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.chapter != oldWidget.chapter || widget.bookName != oldWidget.bookName) {
-      _rebuildKeys();
-      _selectionNotifier.value = {};
-      _anchorWordId = null;
-    }
     if (widget.targetVerse != oldWidget.targetVerse && widget.targetVerse != null) {
-      _triggerInitialScroll();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToTarget());
+    }
+  }
+
+  void _scrollToTarget() {
+    if (!mounted || widget.targetVerse == null) return;
+    
+    final List<BibleVerse> displayVerses = List.from(widget.allVersesOfChapter);
+    final String abbr = widget.allVersesOfChapter.isNotEmpty ? widget.allVersesOfChapter.first.bookAbbreviation : "";
+    final bool isPauline = ['Rom', '1Co', '2Co', 'Gal', 'Eph', 'Phi', 'Col', '1Th', '2Th', '1Ti', '2Ti', 'Tit', 'Phm', 'Heb'].contains(abbr);
+    
+    if (isPauline && displayVerses.isNotEmpty && displayVerses.first.verse == 0) {
+      final verse0 = displayVerses.removeAt(0);
+      displayVerses.add(verse0);
+    }
+
+    int index = displayVerses.indexWhere((v) => v.verse == widget.targetVerse);
+    if (index != -1) {
+      double targetOffset = index * 120.0; 
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          targetOffset.clamp(0, _scrollController.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOut,
+        );
+      }
     }
   }
 
   @override
   void dispose() {
-    _audioSubscription?.cancel();
-    _activeWordNotifier.dispose();
-    _selectionNotifier.dispose();
     _scrollController.dispose();
+    _selectionNotifier.dispose();
+    _activeWordNotifier.dispose();
     super.dispose();
-  }
-
-  void _scrollToId(String wordId, {bool force = false}) {
-    if (!force && _lastScrolledId == wordId) return;
-    _lastScrolledId = wordId;
-    try {
-      final parts = wordId.split(':');
-      final verseId = int.tryParse(parts[0]);
-      if (verseId != null) {
-        final key = _verseKeys[verseId];
-        if (key != null && key.currentContext != null) {
-          Scrollable.ensureVisible(key.currentContext!, alignment: 0.3, duration: Duration(milliseconds: force ? 500 : 800), curve: Curves.easeInOutCubic);
-          if (force) _scrollRetryCount = 0;
-        } else if (force && _scrollRetryCount < 10) {
-          _scrollRetryCount++;
-          Future.delayed(Duration(milliseconds: 100 * _scrollRetryCount), _attemptScroll);
-        }
-      }
-    } catch (_) {}
-  }
-
-  String _getSelectionText(Set<String> selection, {BibleViewStyle? style}) {
-    if (selection.isEmpty) return "";
-    final targetStyle = style ?? widget.currentStyle;
-    List<Map<String, dynamic>> allWords = [];
-    for (var v in widget.allVersesOfChapter) {
-      for (var w in v.styledWords) {
-        allWords.add({'id': "${v.id}:${w.index}", 'v': v, 'w': w});
-      }
-    }
-    List<List<Map<String, dynamic>>> segments = [];
-    List<Map<String, dynamic>> currentSegment = [];
-    for (var wordEntry in allWords) {
-      if (selection.contains(wordEntry['id'])) {
-        currentSegment.add(wordEntry);
-      } else if (currentSegment.isNotEmpty) {
-        segments.add(currentSegment);
-        currentSegment = [];
-      }
-    }
-    if (currentSegment.isNotEmpty) segments.add(currentSegment);
-    List<String> combinedTextParts = [];
-    List<String> combinedLocParts = [];
-    for (var segment in segments) {
-      Map<int, List<int>> verseToWords = {};
-      List<int> verseOrder = [];
-      for (var entry in segment) {
-        BibleVerse v = entry['v'];
-        if (!verseToWords.containsKey(v.id)) { verseToWords[v.id] = []; verseOrder.add(v.id); }
-        verseToWords[v.id]!.add(entry['w'].index);
-      }
-      List<String> segmentLocs = [];
-      List<String> segmentText = [];
-      for (var verseId in verseOrder) {
-        final v = widget.allVersesOfChapter.firstWhere((v) => v.id == verseId);
-        final indices = verseToWords[verseId]!;
-        final styled = BibleLogic.getStyledPhrase(v, indices, targetStyle, widget.continuityMap, widget.parenthesesMap);
-        segmentText.add(styled);
-        final loc = BibleLogic.formatLocation(v.bookAbbreviation, v.chapter, v.verse, indices.first, indices.last);
-        segmentLocs.add(loc);
-      }
-      combinedTextParts.add(segmentText.join(' '));
-      combinedLocParts.add(segmentLocs.join('_'));
-    }
-    return "${combinedTextParts.join(' ')}(${combinedLocParts.join(', ')})";
-  }
-
-  void _shareContent(Set<String> selection) {
-    if (selection.isEmpty) return;
-    StringBuffer buffer = StringBuffer();
-    buffer.writeln("Shared from Holy Bible Mobile");
-    buffer.writeln("=" * 30);
-    for (var style in BibleViewStyle.values) {
-      buffer.writeln("\n[${BibleLogic.getReadingLabel(style)}]");
-      buffer.writeln(_getSelectionText(selection, style: style));
-    }
-    Share.share(buffer.toString());
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isPreface = widget.bookName.toLowerCase() == 'preface' || (widget.allVersesOfChapter.isNotEmpty && widget.allVersesOfChapter.first.bookAbbreviation == 'Pre');
     final bool isMath = widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript;
-    return Column(children: [
-      _buildSelectionToolbar(),
-      if (!isPreface) _buildHeader(isMath),
-      Expanded(child: Container(color: isMath ? Colors.black : null, child: isPreface ? _buildPrefaceView() : _buildCanonicalView())),
-      _buildAudioControls(),
-    ]);
-  }
+    final bool isPreface = widget.bookName.toLowerCase() == 'preface' || (widget.allVersesOfChapter.isNotEmpty && widget.allVersesOfChapter.first.bookAbbreviation == 'Pre');
 
-  Widget _buildSelectionToolbar() {
-    return ValueListenableBuilder<Set<String>>(valueListenable: _selectionNotifier, builder: (context, selection, _) {
-      if (selection.isEmpty) return const SizedBox.shrink();
-      return Container(color: Colors.blueGrey[100], padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Row(children: [
-        Text('${selection.length} selected', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), 
-        const Spacer(), 
-        IconButton(icon: const Icon(Icons.copy, color: Colors.black, size: 20), onPressed: () { 
-          Clipboard.setData(ClipboardData(text: _getSelectionText(selection))); 
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selection copied to clipboard'))); 
-        }),
-        IconButton(icon: const Icon(Icons.share, color: Colors.black, size: 20), onPressed: () => _shareContent(selection)),
-      ]));
-    });
-  }
-
-  Widget _buildHeader(bool isMath) {
-    String label = BibleLogic.getReadingLabel(widget.currentStyle);
-    Color labelColor = Colors.grey;
-    String breadthLabel = "Breadth";
-    switch (widget.currentStyle) {
-      case BibleViewStyle.mathematics: labelColor = Colors.green; breadthLabel = "Tongue of the Mathematicians"; break;
-      case BibleViewStyle.mathematics2: labelColor = Colors.blue; breadthLabel = "Tongue of the Mathematicians"; break;
-      case BibleViewStyle.mathematicsUnconstraint: labelColor = Colors.orange; breadthLabel = "Tongue of the Mathematicians"; break;
-      default: break;
-    }
-    return Container(
-      color: isMath ? Colors.grey[900] : Colors.grey[200], padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(children: [
-        SizedBox(width: 110, child: Text(label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: labelColor, fontFamily: isMath ? 'Courier' : null))),
-        Expanded(child: Text(breadthLabel, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey, fontFamily: isMath ? 'Courier' : null))),
-        IconButton(icon: const Icon(Icons.share, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(), onPressed: () => _shareContent(widget.allVersesOfChapter.expand((v) => v.styledWords.map((w) => "${v.id}:${w.index}")).toSet()), tooltip: "Share Chapter", color: isMath ? Colors.grey : Colors.black54),
-      ]),
+    return Stack(
+      children: [
+        Column(
+          children: [
+            _buildHeader(isMath),
+            Expanded(child: Container(color: isMath ? Colors.black : null, child: isPreface ? _buildPrefaceView() : _buildStandardView())),
+          ],
+        ),
+        Positioned(
+          bottom: 20,
+          left: 20,
+          right: 20,
+          child: ValueListenableBuilder<Set<String>>(
+            valueListenable: _selectionNotifier,
+            builder: (context, selection, _) {
+              if (selection.isEmpty) return const SizedBox.shrink();
+              return _buildFloatingActionBar(selection);
+            },
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildCanonicalView() {
-    final bool isMath = widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript;
+  Widget _buildFloatingActionBar(Set<String> selection) {
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(30),
+      color: Colors.brown[800],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            IconButton(icon: const Icon(Icons.copy, color: Colors.white), onPressed: () => _handleCopy(selection), tooltip: "Copy"),
+            IconButton(icon: const Icon(Icons.share, color: Colors.white), onPressed: () => _handleShare(selection), tooltip: "Share"),
+            IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => setState(() => _selectionNotifier.value = {}), tooltip: "Clear"),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleCopy(Set<String> selection) {
+    String text = _getSelectedText(selection);
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Copied to clipboard"), duration: Duration(seconds: 1)));
+  }
+
+  void _handleShare(Set<String> selection) {
+    String text = _getSelectedText(selection);
+    Share.share(text);
+  }
+
+  String _getSelectedText(Set<String> selection) {
+    if (selection.isEmpty) return "";
+    Map<int, List<int>> verseGroups = {};
+    for (var id in selection) {
+      var parts = id.split(':');
+      int vId = int.parse(parts[0]);
+      int wIdx = int.parse(parts[1]);
+      verseGroups.putIfAbsent(vId, () => []).add(wIdx);
+    }
+    List<int> sortedVerseIds = verseGroups.keys.toList()..sort((a, b) {
+      int idxA = widget.allVersesOfChapter.indexWhere((v) => v.id == a);
+      int idxB = widget.allVersesOfChapter.indexWhere((v) => v.id == b);
+      return idxA.compareTo(idxB);
+    });
+    StringBuffer sb = StringBuffer();
+    for (int vId in sortedVerseIds) {
+      final v = widget.allVersesOfChapter.firstWhere((v) => v.id == vId);
+      List<int> indices = verseGroups[vId]!..sort();
+      String styledText = BibleLogic.getStyledPhrase(v, indices, widget.currentStyle, widget.continuityMap, widget.parenthesesMap);
+      if (sb.isNotEmpty) sb.write(" ");
+      sb.write(styledText);
+    }
+    return sb.toString();
+  }
+
+  Widget _buildHeader(bool isMath) {
+    final textColor = isMath ? Colors.white : Colors.brown;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+      color: isMath ? Colors.grey[900] : Colors.brown[50],
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: Icon(Icons.chevron_left, color: textColor, size: 32),
+            onPressed: widget.onChapterChange != null ? () => widget.onChapterChange!(-1) : null,
+          ),
+          Column(
+            children: [
+              Text(widget.bookName, style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 16)),
+              Text('Chapter ${widget.chapter}', style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 12)),
+            ],
+          ),
+          IconButton(
+            icon: Icon(Icons.chevron_right, color: textColor, size: 32),
+            onPressed: widget.onChapterChange != null ? () => widget.onChapterChange!(1) : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStandardView() {
+    if (widget.allVersesOfChapter.isEmpty) return const SizedBox.shrink();
+    
+    final List<BibleVerse> displayVerses = List.from(widget.allVersesOfChapter);
+    final String abbr = widget.allVersesOfChapter.first.bookAbbreviation;
+    final bool isPauline = ['Rom', '1Co', '2Co', 'Gal', 'Eph', 'Phi', 'Col', '1Th', '2Th', '1Ti', '2Ti', 'Tit', 'Phm', 'Heb'].contains(abbr);
+    
+    // Handle Pauline Epistle Superscriptions (Verse 0 moves to bottom)
+    if (isPauline && displayVerses.isNotEmpty && displayVerses.first.verse == 0) {
+      final verse0 = displayVerses.removeAt(0);
+      displayVerses.add(verse0);
+    }
+
     return ListView.builder(
-      controller: _scrollController, itemCount: widget.allVersesOfChapter.length,
+      controller: _scrollController,
+      padding: const EdgeInsets.all(16),
+      itemCount: displayVerses.length,
       itemBuilder: (context, index) {
-        final v = widget.allVersesOfChapter[index];
+        final v = displayVerses[index];
         final bool isVerse0 = v.verse == 0;
-        final bool isSuperscript = widget.currentStyle == BibleViewStyle.superscript;
-        final locationText = isSuperscript ? '${v.bookAbbreviation}${v.chapter}:${v.verse}' : '${v.bookAbbreviation}${v.chapter}:${v.verse}:1-${v.wordCount}';
-        return Container(
-          key: _verseKeys[v.id], padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (!isVerse0) SizedBox(width: 110, child: Row(children: [
-              Expanded(child: Text(locationText, style: TextStyle(fontWeight: FontWeight.bold, color: widget.isDarkMode || isMath ? Colors.grey[400] : Colors.grey, fontSize: 10, fontFamily: isMath ? 'Courier' : null))),
-              const SizedBox(width: 4),
-              IconButton(icon: const Icon(Icons.share, size: 14), padding: EdgeInsets.zero, constraints: const BoxConstraints(), onPressed: () => _shareContent(v.styledWords.map((w) => "${v.id}:${w.index}").toSet()), color: Colors.blue[300], tooltip: "Share Verse"),
-            ])) else const SizedBox(width: 110),
-            Expanded(child: _buildVerseContent(v, isVerse0: isVerse0)),
-          ]),
+        
+        // Handle Author/Superscription Header Logic (Verse 0)
+        if (isVerse0) {
+           return Padding(
+             padding: const EdgeInsets.symmetric(vertical: 8.0),
+             child: Center(
+               child: _buildVerseContent(
+                 v, 
+                 customScale: 0.8, // Section 5 requirement: Small font size
+                 forceItalic: true,
+                 isVerse0: true
+               )
+             ),
+           );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 35, 
+                child: Text('${v.verse}', style: TextStyle(fontSize: widget.fontSize * 0.6, color: Colors.grey, fontWeight: FontWeight.bold))
+              ),
+              Expanded(child: _buildVerseContent(v)),
+            ],
+          ),
         );
       },
     );
@@ -263,16 +274,16 @@ class _BibleReaderViewState extends State<BibleReaderView> {
 
   Widget _buildPrefaceView() {
     final List<Widget> items = [];
+    
     if (widget.chapter == 0) {
-      // Chapter 0: Title Page
       for (var v in widget.allVersesOfChapter) {
         double scale = 1.0; bool isItalic = false; bool isBold = false; bool skip = false;
         switch (v.verse) {
-          case 0: skip = true; break; // Hide "TITLE"
-          case 1: scale = 0.85; break; // THE
-          case 2: scale = 2.4; isBold = true; break; // HOLY BIBLE
-          case 3: scale = 0.85; break; // CONTAINING THE
-          case 4: scale = 1.5; isBold = true; break; // OLD AND NEW TESTAMENTS
+          case 0: skip = true; break;
+          case 1: scale = 0.85; break;
+          case 2: scale = 2.4; isBold = true; break;
+          case 3: scale = 0.85; break;
+          case 4: scale = 1.5; isBold = true; break;
           case 5: case 6: case 7: case 8: scale = 0.95; break;
           case 9: scale = 1.0; isItalic = true; break;
           case 10: case 11: scale = 1.1; break;
@@ -283,19 +294,15 @@ class _BibleReaderViewState extends State<BibleReaderView> {
         }
       }
     } else if (widget.chapter == 1) {
-      // Chapter 1: Epistle Dedicatory
       List<BibleVerse> currentParagraph = [];
       for (int i = 0; i < widget.allVersesOfChapter.length; i++) {
         final v = widget.allVersesOfChapter[i];
         if (v.verse == 0) {
-          // Section 2 Header: Pre1:0
           items.add(_buildParagraph([v], center: true, customScale: 1.4, forceBold: true));
           items.add(const SizedBox(height: 24));
         } else if (v.verse >= 1 && v.verse <= 7) {
-          // Text Style 1: Pre1:1-7 (7 lines WYSIWYG)
           items.add(_buildParagraph([v], center: true, customScale: 1.1, forceBold: true));
         } else {
-          // SECTION 2 BODY Text Style 2: Pre1:8-62 Concatenated Paragraphs
           currentParagraph.add(v);
           if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) {
             items.add(_buildParagraph(currentParagraph));
@@ -304,14 +311,43 @@ class _BibleReaderViewState extends State<BibleReaderView> {
         }
       }
     } else {
-      // Other chapters
+      // General logic for Sections 3 (Ch 2) through 16 (Ch 15) and Section 4 (Ch 17)
       List<BibleVerse> currentParagraph = [];
       for (int i = 0; i < widget.allVersesOfChapter.length; i++) {
         final v = widget.allVersesOfChapter[i];
-        currentParagraph.add(v);
-        if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) {
-          items.add(_buildParagraph(currentParagraph));
-          currentParagraph = [];
+        
+        if (widget.chapter == 17) {
+           // SPECIAL SECTION 4 (Chapter 17)
+           if (v.verse >= 0 && v.verse <= 2) {
+             items.add(_buildParagraph([v], center: true, customScale: 1.3, forceBold: true));
+             if (v.verse == 2) items.add(const SizedBox(height: 24));
+             continue;
+           } else if (v.verse >= 3 && v.verse <= 5) {
+             currentParagraph.add(v);
+             if (v.text.contains('¶') || v.verse == 5) {
+               items.add(_buildParagraph(currentParagraph));
+               currentParagraph = [];
+             }
+             continue;
+           }
+        }
+
+        // Generic Chapter Handling (Sections 3-16)
+        if (v.verse == 0) {
+          // Header (Verse 0)
+          items.add(_buildParagraph([v], center: true, customScale: 1.4, forceBold: true));
+          items.add(const SizedBox(height: 24));
+        } else if (v.verse == 1 && widget.chapter >= 2 && widget.chapter <= 15) {
+          // Title (Verse 1) for Sections 3-16
+          items.add(_buildParagraph([v], center: true, customScale: 1.2, forceBold: true));
+          items.add(const SizedBox(height: 16));
+        } else {
+          // Body Text with Paragraph concatenation
+          currentParagraph.add(v);
+          if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) {
+            items.add(_buildParagraph(currentParagraph));
+            currentParagraph = [];
+          }
         }
       }
     }
@@ -377,11 +413,11 @@ class _BibleReaderViewState extends State<BibleReaderView> {
     });
   }
 
-  Widget _buildVerseContent(BibleVerse v, {bool isVerse0 = false}) {
-    double fontSize = widget.fontSize;
-    if (isVerse0) fontSize *= 0.75;
+  Widget _buildVerseContent(BibleVerse v, {double customScale = 1.0, bool forceBold = false, bool forceItalic = false, bool isVerse0 = false}) {
+    double fontSize = widget.fontSize * customScale;
+    if (isVerse0 && customScale == 1.0) fontSize *= 0.70;
     final mathWords = BibleLogic.applyContinuity(v, widget.continuityMap, parenthesesMap: widget.parenthesesMap, style: widget.currentStyle);
-    return Wrap(children: mathWords.map((mw) => _renderWord(v, mw, customSize: fontSize)).toList());
+    return Wrap(children: mathWords.map((mw) => _renderWord(v, mw, customSize: fontSize, isBold: forceBold, isItalic: forceItalic)).toList());
   }
 
   void _handleWordTap(String id) {
@@ -399,15 +435,15 @@ class _BibleReaderViewState extends State<BibleReaderView> {
         current.clear();
         for (int i = min(start, end); i <= max(start, end); i++) current.add(allIds[i]);
       }
-      _anchorWordId = null;
-    } else { current = {id}; _anchorWordId = id; }
+    } else {
+      current = {id};
+      _anchorWordId = id;
+    }
     _selectionNotifier.value = current;
   }
 
   void _handleLongPress(String id) {
-    _anchorWordId = id; _selectionNotifier.value = {id}; HapticFeedback.mediumImpact();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Start point set. Tap another word to select range.'), duration: Duration(seconds: 1)));
+    _selectionNotifier.value = {id};
+    _anchorWordId = id;
   }
-
-  Widget _buildAudioControls() { return Container(color: Colors.brown[50], padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => widget.onChapterChange(widget.chapter - 1)), IconButton(icon: const Icon(Icons.play_arrow, size: 48), onPressed: () {}), IconButton(icon: const Icon(Icons.play_arrow, size: 48), onPressed: () {}), IconButton(icon: const Icon(Icons.arrow_forward), onPressed: () => widget.onChapterChange(widget.chapter + 1))])); }
 }
