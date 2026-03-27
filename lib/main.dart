@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'database_service.dart';
 import 'bible_model.dart';
 import 'bible_logic.dart';
@@ -143,6 +144,10 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   BibleVerse? _dailyVerse;
   bool _isDbInitializing = true;
   
+  // Persistent Search State
+  String? _cachedSearchQuery;
+  List<BibleMatch>? _cachedSearchResults;
+  
   final DatabaseService _db = DatabaseService();
   final AudioService _audioService = AudioService();
   final TextEditingController _bookFilterController = TextEditingController();
@@ -169,22 +174,18 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   Future<void> _initData() async {
     setState(() => _isDbInitializing = true);
     await _db.initialize();
-    
-    // Explicitly clear cache on restart to force verification of new logic
     BibleLogic.clearCache();
-    
     final prefs = await SharedPreferences.getInstance();
     final books = await _db.getBooks();
     final daily = await _db.getDailyVerse();
     final cont = await _db.getContinuityMap();
     final par = await _db.getParenthesesMap();
-    
+    await Future.delayed(const Duration(milliseconds: 800));
     setState(() {
       _books = books;
       _dailyVerse = daily;
       _continuityMap = cont;
       _parenthesesMap = par;
-      // Load and persist the mathematical style
       _currentStyle = BibleViewStyle.values[prefs.getInt('bibleStyle') ?? 0];
       _isDbInitializing = false;
     });
@@ -199,18 +200,22 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   Future<void> _onBookSelected(String book) async {
     final chapters = await _db.getChapters(book);
     setState(() { _selectedBook = book; _chapters = chapters; _selectedChapter = null; _selectedVerse = null; });
-    _bibleTabController.animateTo(1);
+    _bibleTabController.animateTo(1); // Go to chapters
   }
 
   Future<void> _onChapterSelected(int chapter, {bool animateToVerseGrid = true}) async {
     final verses = await _db.getChapter(_selectedBook!, chapter);
     setState(() { _selectedChapter = chapter; _chapterVerses = verses; _selectedVerse = null; });
-    if (animateToVerseGrid) _bibleTabController.animateTo(2);
+    if (animateToVerseGrid) _bibleTabController.animateTo(2); // Go to verses
   }
 
   void _onVerseSelected(int verse) {
-    setState(() { _selectedVerse = verse; _selectedWordIndex = 1; });
-    _bibleTabController.animateTo(3);
+    setState(() {
+      _selectedVerse = verse;
+      _selectedWordIndex = 1;
+      _dailyVerse = _chapterVerses.firstWhere((v) => v.verse == verse);
+    });
+    _bibleTabController.animateTo(3); // Go to Read
   }
 
   void _onChapterNavigate(int direction) async {
@@ -218,7 +223,19 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
     int currentIndex = _chapters.indexOf(_selectedChapter!);
     int newIndex = currentIndex + direction;
     if (newIndex >= 0 && newIndex < _chapters.length) {
-      _onChapterSelected(_chapters[newIndex], animateToVerseGrid: false);
+      final nextChapter = _chapters[newIndex];
+      final verses = await _db.getChapter(_selectedBook!, nextChapter);
+      setState(() { _selectedChapter = nextChapter; _chapterVerses = verses; _selectedVerse = null; _dailyVerse = verses.first; });
+    } else {
+      int bookIndex = _books.indexOf(_selectedBook!);
+      int targetBookIndex = bookIndex + direction;
+      if (targetBookIndex >= 0 && targetBookIndex < _books.length) {
+        String targetBook = _books[targetBookIndex];
+        final targetChapters = await _db.getChapters(targetBook);
+        int targetChapter = (direction > 0) ? targetChapters.first : targetChapters.last;
+        final verses = await _db.getChapter(targetBook, targetChapter);
+        setState(() { _selectedBook = targetBook; _chapters = targetChapters; _selectedChapter = targetChapter; _chapterVerses = verses; _selectedVerse = null; _dailyVerse = verses.first; });
+      }
     }
   }
 
@@ -228,6 +245,8 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
     final bookName = _books.firstWhere((b) => b.toLowerCase().startsWith(bibleLoc.bookAbbr.toLowerCase()), orElse: () => _books.first);
     final chapters = await _db.getChapters(bookName);
     final verses = await _db.getChapter(bookName, bibleLoc.chapter);
+    final newDaily = verses.firstWhere((v) => v.verse == bibleLoc.verse, orElse: () => verses.first);
+    
     setState(() {
       _selectedBook = bookName;
       _chapters = chapters;
@@ -236,238 +255,173 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
       _selectedVerse = bibleLoc.verse;
       _selectedWordIndex = bibleLoc.startWord;
       _jumpHighlightPhrase = highlight;
+      _dailyVerse = newDaily;
       _selectedIndex = 1;
     });
-    _bibleTabController.animateTo(3);
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bibleTabController.animateTo(3);
+    });
   }
 
-  void _showVerseSelector() async {
-    final result = await showDialog<Map<String, dynamic>>(context: context, builder: (c) => const VerseSelectorDialog());
-    if (result != null) _jumpToLocation("${result['book']} ${result['chapter']}:${result['verse']}");
+  void _handleSearch() async {
+    final result = await showSearch<BibleMatch?>(
+      context: context, 
+      delegate: BibleSearchDelegate(
+        _db, 
+        initialQuery: _cachedSearchQuery,
+        initialResults: _cachedSearchResults,
+        onCacheUpdate: (q, results) {
+          _cachedSearchQuery = q;
+          _cachedSearchResults = results;
+        }
+      )
+    );
+    if (result != null) {
+      _jumpToLocation(result.location, highlight: result.phrase);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isDbInitializing) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_isDbInitializing) return Scaffold(body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [SvgPicture.asset('assets/IGoToTheFather.svg', width: 220, height: 220), const SizedBox(height: 32), const Text("Initializing Bible Vector Space...", style: TextStyle(fontSize: 16, fontStyle: FontStyle.italic, color: Colors.brown)), const SizedBox(height: 16), const CircularProgressIndicator(strokeWidth: 2, color: Colors.brown)])));
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          children: [
-            const Text("Authorized King James Version 1611 Pure Cambridge Edition circa 1900", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-            Text("\$Prevailing KJVersion\$", style: TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: Colors.brown[700])),
-          ],
-        ),
+        title: Column(children: [const Text("Authorized King James Version 1611 Pure Cambridge Edition circa 1900", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), Text("\$${BibleLogic.getReadingLabel(_currentStyle)}\$", style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.brown[700]))]),
         actions: [
-          IconButton(icon: const Icon(Icons.search, color: Colors.brown), onPressed: () => showSearch(context: context, delegate: BibleSearchDelegate(_db))),
+          IconButton(icon: const Icon(Icons.search, color: Colors.brown), onPressed: _handleSearch),
           IconButton(icon: const Icon(Icons.refresh, color: Colors.brown), onPressed: () => setState(() { _initData(); })),
-          DropdownButton<BibleViewStyle>(
-            value: _currentStyle,
-            underline: const SizedBox(),
-            icon: const Icon(Icons.style, color: Colors.brown),
-            items: BibleViewStyle.values.map((s) => DropdownMenuItem(value: s, child: Text(BibleLogic.getReadingLabel(s), style: const TextStyle(fontSize: 12)))).toList(),
-            onChanged: (s) => _saveStyle(s!),
-          ),
+          DropdownButton<BibleViewStyle>(value: _currentStyle, underline: const SizedBox(), icon: const Icon(Icons.style, color: Colors.brown), items: BibleViewStyle.values.map((s) => DropdownMenuItem(value: s, child: Text(BibleLogic.getReadingLabel(s), style: const TextStyle(fontSize: 12)))).toList(), onChanged: (s) => _saveStyle(s!)),
           const SizedBox(width: 8),
         ],
       ),
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          _dailyVerse == null ? const Center(child: Text("Loading...")) : _buildWelcomePage(_dailyVerse!, _continuityMap, _parenthesesMap),
+          _dailyVerse == null ? const Center(child: Text("Loading...")) : _buildWelcomePage(_dailyVerse!),
           _buildBibleNavigator(),
-          StudyHubView(
-            onJumpToLocation: _jumpToLocation,
-            currentStyle: _currentStyle,
-            continuityMap: _continuityMap,
-            parenthesesMap: _parenthesesMap,
-            fontSize: widget.fontSize,
-            isDarkMode: widget.selectedTheme == AppTheme.midnight,
-          ),
+          StudyHubView(onJumpToLocation: _jumpToLocation, currentStyle: _currentStyle, fontSize: widget.fontSize, isDarkMode: widget.selectedTheme == AppTheme.midnight),
           _buildSettingsTab(),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.menu_book), label: 'Bible'),
-          NavigationDestination(icon: Icon(Icons.science), label: 'Study Hub'),
-          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
-        ],
-      ),
+      bottomNavigationBar: NavigationBar(selectedIndex: _selectedIndex, onDestinationSelected: (i) => setState(() => _selectedIndex = i), destinations: const [NavigationDestination(icon: Icon(Icons.home), label: 'Home'), NavigationDestination(icon: Icon(Icons.menu_book), label: 'Bible'), NavigationDestination(icon: Icon(Icons.science), label: 'Study Hub'), NavigationDestination(icon: Icon(Icons.settings), label: 'Settings')]),
     );
   }
 
   Widget _buildBibleNavigator() {
-    return Column(
-      children: [
-        TabBar(
-          controller: _bibleTabController, isScrollable: true, labelColor: Colors.brown, unselectedLabelColor: Colors.grey,
-          tabs: [
-            const Tab(text: "BOOK (HEIGHT)"),
-            Tab(text: "CHAPTER${(_selectedChapter != null) ? ": $_selectedChapter" : ""} (DEPTH)"),
-            Tab(text: "VERSE${(_selectedVerse != null) ? ": $_selectedVerse" : ""} (LENGTH)"),
-            const Tab(text: "READER"),
-          ],
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _bibleTabController,
-            children: [ _buildBookTab(), _buildChapterTab(), _buildVerseGridTab(), _buildVerseTab(_continuityMap, _parenthesesMap) ],
-          ),
-        ),
-      ],
-    );
+    return Column(children: [TabBar(controller: _bibleTabController, isScrollable: true, labelColor: Colors.brown, unselectedLabelColor: Colors.grey, tabs: [
+      Tooltip(message: "HEIGHT", child: Tab(text: "BOOK${(_selectedBook != null) ? "\n($_selectedBook)" : ""}")),
+      Tooltip(message: "DEPTH", child: Tab(text: "CHAPTER${(_selectedChapter != null) ? "\n($_selectedChapter)" : ""}")),
+      Tooltip(message: "LENGTH", child: Tab(text: "VERSE${(_selectedVerse != null) ? "\n($_selectedVerse)" : ""}")),
+      const Tooltip(message: "BREADTH", child: Tab(text: "READ")),
+    ]), Expanded(child: TabBarView(controller: _bibleTabController, children: [ _buildBookTab(), _buildChapterTab(), _buildVerseGridTab(), _buildVerseTab() ]))]);
   }
 
-  Widget _buildBookTab() {
-    return Column(children: [
-      Padding(padding: const EdgeInsets.all(8.0), child: TextField(controller: _bookFilterController, decoration: const InputDecoration(hintText: 'Filter Books...', prefixIcon: Icon(Icons.filter_list), border: OutlineInputBorder()), onChanged: (v) => setState(() {}))),
-      Expanded(child: ListView.builder(itemCount: _books.length, itemBuilder: (context, index) { if (_bookFilterController.text.isNotEmpty && !_books[index].toLowerCase().contains(_bookFilterController.text.toLowerCase())) return const SizedBox.shrink(); return ListTile(title: Text(_books[index]), selected: _selectedBook == _books[index], onTap: () => _onBookSelected(_books[index])); })),
-    ]);
-  }
-
-  Widget _buildChapterTab() {
-    if (_selectedBook == null) return const Center(child: Text("Select a Book first (HEIGHT)"));
-    return GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 8, crossAxisSpacing: 8, mainAxisSpacing: 8), itemCount: _chapters.length, itemBuilder: (context, index) { return InkWell(onTap: () => _onChapterSelected(_chapters[index]), child: Container(decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.2), borderRadius: BorderRadius.circular(4)), alignment: Alignment.center, child: Text('${_chapters[index]}'))); });
-  }
-
-  Widget _buildVerseGridTab() {
-    if (_selectedChapter == null) return const Center(child: Text("Select a Chapter first (DEPTH)"));
-    final verses = _chapterVerses.map((v) => v.verse).toSet().toList()..sort();
-    return GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 8, crossAxisSpacing: 8, mainAxisSpacing: 8), itemCount: verses.length, itemBuilder: (context, index) { return InkWell(onTap: () => _onVerseSelected(verses[index]), child: Container(decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.2), borderRadius: BorderRadius.circular(4)), alignment: Alignment.center, child: Text('${verses[index]}'))); });
-  }
-
-  Widget _buildVerseTab(Map<String, String> cont, Map<String, String> par) {
-    if (_selectedBook == null || _selectedChapter == null) return const Center(child: Text("Navigation required (HEIGHT > DEPTH > LENGTH)"));
+  Widget _buildBookTab() { return Column(children: [Padding(padding: const EdgeInsets.all(8.0), child: TextField(controller: _bookFilterController, decoration: const InputDecoration(hintText: 'Filter Books...', prefixIcon: Icon(Icons.filter_list), border: OutlineInputBorder()), onChanged: (v) => setState(() {}))), Expanded(child: ListView.builder(itemCount: _books.length, itemBuilder: (context, index) { if (_bookFilterController.text.isNotEmpty && !_books[index].toLowerCase().contains(_bookFilterController.text.toLowerCase())) return const SizedBox.shrink(); return ListTile(title: Text(_books[index]), selected: _selectedBook == _books[index], onTap: () => _onBookSelected(_books[index])); }))]); }
+  Widget _buildChapterTab() { if (_selectedBook == null) return const Center(child: Text("Select a Book first (HEIGHT)")); return GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 8, crossAxisSpacing: 8, mainAxisSpacing: 8), itemCount: _chapters.length, itemBuilder: (context, index) { return InkWell(onTap: () => _onChapterSelected(_chapters[index]), child: Container(decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.2), borderRadius: BorderRadius.circular(4)), alignment: Alignment.center, child: Text('${_chapters[index]}'))); }); }
+  Widget _buildVerseGridTab() { if (_selectedChapter == null) return const Center(child: Text("Select a Chapter first (DEPTH)")); final verses = _chapterVerses.map((v) => v.verse).toSet().toList()..sort(); return GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 8, crossAxisSpacing: 8, mainAxisSpacing: 8), itemCount: verses.length, itemBuilder: (context, index) { return InkWell(onTap: () => _onVerseSelected(verses[index]), child: Container(decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.2), borderRadius: BorderRadius.circular(4)), alignment: Alignment.center, child: Text('${verses[index]}'))); }); }
+  Widget _buildVerseTab() { 
+    if (_selectedBook == null || _selectedChapter == null) return const Center(child: Text("Navigation required (HEIGHT > DEPTH > LENGTH)")); 
     return BibleReaderView(
-      bookName: _selectedBook!, chapter: _selectedChapter!, allVersesOfChapter: _chapterVerses, currentStyle: _currentStyle, continuityMap: cont, parenthesesMap: par, targetVerse: _selectedVerse, targetWordIndex: _selectedWordIndex, audioService: _audioService, isAudioEnabled: widget.isAudioEnabled, fontSize: widget.fontSize, isDarkMode: widget.selectedTheme == AppTheme.midnight, highlightPhrase: _jumpHighlightPhrase, onChapterChange: (direction) => _onChapterNavigate(direction), onFontSizeChanged: widget.onFontSizeChanged, onAudioChanged: widget.onAudioChanged,
+      bookName: _selectedBook!, 
+      chapter: _selectedChapter!, 
+      allVersesOfChapter: _chapterVerses, 
+      currentStyle: _currentStyle, 
+      continuityMap: _continuityMap, 
+      parenthesesMap: _parenthesesMap, 
+      targetVerse: _selectedVerse, 
+      targetWordIndex: _selectedWordIndex, 
+      audioService: _audioService, 
+      isAudioEnabled: widget.isAudioEnabled, 
+      fontSize: widget.fontSize, 
+      isDarkMode: widget.selectedTheme == AppTheme.midnight, 
+      highlightPhrase: _jumpHighlightPhrase, 
+      onChapterChange: (direction) => _onChapterNavigate(direction), 
+      onFontSizeChanged: widget.onFontSizeChanged, 
+      onAudioChanged: widget.onAudioChanged
     );
   }
 
-  Widget _buildWelcomePage(BibleVerse v, Map<String, String> cont, Map<String, String> par) {
+  Widget _buildWelcomePage(BibleVerse v) {
     return SingleChildScrollView(padding: const EdgeInsets.all(16.0), child: Column(children: [
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Image.asset('assets/IGoToTheFather1B.PNG', height: 80),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Daily Bread', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                    IconButton(icon: const Icon(Icons.edit, size: 20, color: Colors.brown), onPressed: _showVerseSelector, tooltip: "Change Verse"),
-                  ],
-                ),
-                Text('${v.bookAbbreviation}${v.chapter}:${v.verse}:1-${v.wordCount}', style: const TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500)),
-              ],
-            ),
-          ),
-        ],
-      ),
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Image.asset('assets/IGoToTheFather1B.PNG', height: 80), const SizedBox(width: 15), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Daily Bread', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), IconButton(icon: const Icon(Icons.edit, size: 20, color: Colors.brown), onPressed: () async { final r = await showDialog<Map<String, dynamic>>(context: context, builder: (c) => const VerseSelectorDialog()); if (r != null) { _jumpToLocation("${r['book']} ${r['chapter']}:${r['verse']}"); setState(() => _selectedIndex = 0); } }, tooltip: "Change Verse")]), Text('${v.bookAbbreviation}${v.chapter}:${v.verse}:1-${v.wordCount}', style: const TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500))]))]),
       const SizedBox(height: 24),
-      InkWell(onTap: () => _jumpToLocation("${v.bookAbbreviation}${v.chapter}:${v.verse}"), child: _buildComparisonView(v, cont, par)),
+      InkWell(onTap: () => _jumpToLocation("${v.bookAbbreviation}${v.chapter}:${v.verse}"), child: Column(children: [
+        _buildComparisonRow("AKJV 1611 PCE circa 1900", v, _continuityMap, _parenthesesMap, BibleViewStyle.standard),
+        _buildComparisonRow("ARRAY | Superscript KJV", v, _continuityMap, _parenthesesMap, BibleViewStyle.superscript),
+        _buildComparisonRow("PROPORTION | MathKJVP", v, _continuityMap, _parenthesesMap, BibleViewStyle.mathematics),
+        _buildComparisonRow("BALANCE | MathKJVS", v, _continuityMap, _parenthesesMap, BibleViewStyle.mathematics2),
+        _buildComparisonRow("JOIN | MathKJVT", v, _continuityMap, _parenthesesMap, BibleViewStyle.mathematicsUnconstraint),
+      ])),
     ]));
-  }
-
-  Widget _buildComparisonView(BibleVerse v, Map<String, String> cont, Map<String, String> par) {
-    return Column(
-      children: [
-        _buildComparisonRow("AKJV 1611 PCE circa 1900", v, cont, par, BibleViewStyle.standard),
-        _buildComparisonRow("Superscript KJV", v, cont, par, BibleViewStyle.superscript),
-        _buildComparisonRow("MathKJVP", v, cont, par, BibleViewStyle.mathematics),
-        _buildComparisonRow("MathKJVS", v, cont, par, BibleViewStyle.mathematics2),
-        _buildComparisonRow("MathKJVT", v, cont, par, BibleViewStyle.mathematicsUnconstraint),
-      ],
-    );
   }
 
   Widget _buildComparisonRow(String title, BibleVerse v, Map<String, String> cont, Map<String, String> par, BibleViewStyle style) {
     final bool isMath = style != BibleViewStyle.standard && style != BibleViewStyle.superscript;
-    return Container(
-      width: double.infinity, margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: isMath ? Colors.black : Colors.brown[50], borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.brown[100]!)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isMath ? Colors.white70 : Colors.brown)),
-          const SizedBox(height: 8),
-          Wrap(children: BibleLogic.applyContinuity(v, cont, parenthesesMap: par, style: style).map((mw) => _renderComparisonWord(v, mw, style)).toList()),
-        ],
-      ),
-    );
+    return Container(width: double.infinity, margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: isMath ? Colors.black : Colors.brown[50], borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.brown[100]!)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isMath ? Colors.white70 : Colors.brown)), const SizedBox(height: 8), Wrap(children: BibleLogic.applyContinuity(v, cont, parenthesesMap: par, style: style).map((mw) => _renderComparisonWord(v, mw, style)).toList())]));
   }
 
   Widget _renderComparisonWord(BibleVerse v, MathWord mw, BibleViewStyle style) {
     final bool isMath = style != BibleViewStyle.standard && style != BibleViewStyle.superscript;
     final bool isSuperscript = style == BibleViewStyle.superscript;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 1),
-      child: RichText(text: TextSpan(children: [
-        if (mw.hasLeadingSpace) const TextSpan(text: ' '),
-        ...mw.parts.map((p) {
-          if (isSuperscript && !p.isParenthesis) {
-            return TextSpan(children: [
-              TextSpan(text: p.text, style: TextStyle(color: Colors.black87, fontSize: widget.fontSize * 0.85, fontStyle: p.isItalic ? FontStyle.italic : FontStyle.normal)),
-              WidgetSpan(child: Transform.translate(offset: const Offset(0, -5), child: Text('${mw.original.index}', style: TextStyle(fontSize: widget.fontSize * 0.45, color: Colors.blue, fontWeight: FontWeight.bold)))),
-            ]);
-          }
-          return TextSpan(text: p.text, style: TextStyle(
-            color: p.isRed ? Colors.red : (isMath ? Colors.white : Colors.black87), fontSize: widget.fontSize * 0.85, fontWeight: p.isRed ? FontWeight.bold : FontWeight.normal, fontStyle: p.isItalic ? FontStyle.italic : FontStyle.normal, fontFamily: isMath ? 'Courier' : null,
-          ));
-        })
-      ])),
-    );
+    final bool isMidnight = widget.selectedTheme == AppTheme.midnight;
+    final symbolColor = BibleLogic.getMathSymbolColor(style);
+    return Padding(padding: const EdgeInsets.symmetric(horizontal: 1), child: RichText(text: TextSpan(children: [
+      if (mw.hasLeadingSpace) const TextSpan(text: ' '),
+      ...mw.parts.map((p) {
+        if (isSuperscript && !p.isParenthesis) {
+          return TextSpan(children: [
+            TextSpan(text: p.text, style: TextStyle(color: isMath || isMidnight ? Colors.white : Colors.black87, fontSize: widget.fontSize * 0.85, fontStyle: p.isItalic ? FontStyle.italic : FontStyle.normal)),
+            WidgetSpan(child: Transform.translate(offset: const Offset(0, -8), child: Text('${mw.original.index}', style: TextStyle(fontSize: widget.fontSize * 0.35, color: Colors.blue, fontWeight: FontWeight.bold)))),
+          ]);
+        }
+        return TextSpan(text: p.text, style: TextStyle(color: p.isRed ? symbolColor : (isMath || isMidnight ? Colors.white : Colors.black87), fontSize: widget.fontSize * 0.85, fontWeight: p.isRed ? FontWeight.bold : FontWeight.normal, fontStyle: p.isItalic ? FontStyle.italic : FontStyle.normal, fontFamily: isMath ? 'Courier' : null));
+      })
+    ])));
   }
 
-  Widget _buildSettingsTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const Text("Appearance", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)),
-        const SizedBox(height: 16),
-        ListTile(title: const Text("Theme Mode"), trailing: DropdownButton<AppTheme>(value: widget.selectedTheme, items: AppTheme.values.map((t) => DropdownMenuItem(value: t, child: Text(t.name.toUpperCase()))).toList(), onChanged: (t) => widget.onThemeChanged(t!))),
-        ListTile(title: const Text("App Font"), trailing: DropdownButton<AppFont>(value: widget.selectedFont, items: AppFont.values.map((f) => DropdownMenuItem(value: f, child: Text(f.name.toUpperCase()))).toList(), onChanged: (f) => widget.onFontChanged(f!))),
-        const Divider(),
-        const Text("Audio Settings", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)),
-        SwitchListTile(title: const Text("Enable Audio Sync"), subtitle: const Text("Highlights words during playback"), value: widget.isAudioEnabled, onChanged: widget.onAudioChanged),
-        ListTile(title: const Text("Voice Quality"), trailing: DropdownButton<AudioQuality>(value: widget.audioQuality, items: AudioQuality.values.map((q) => DropdownMenuItem(value: q, child: Text(q.name.toUpperCase()))).toList(), onChanged: (q) => widget.onAudioQualityChanged(q!))),
-      ],
-    );
-  }
+  Widget _buildSettingsTab() { return ListView(padding: const EdgeInsets.all(16), children: [const Text("Appearance", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)), const SizedBox(height: 16), ListTile(title: const Text("Theme Mode"), trailing: DropdownButton<AppTheme>(value: widget.selectedTheme, items: AppTheme.values.map((t) => DropdownMenuItem(value: t, child: Text(t.name.toUpperCase()))).toList(), onChanged: (t) => widget.onThemeChanged(t!))), ListTile(title: const Text("App Font"), trailing: DropdownButton<AppFont>(value: widget.selectedFont, items: AppFont.values.map((f) => DropdownMenuItem(value: f, child: Text(f.name.toUpperCase()))).toList(), onChanged: (f) => widget.onFontChanged(f!))), const Divider(), const Text("Audio Settings", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)), SwitchListTile(title: const Text("Enable Audio Sync"), subtitle: const Text("Highlights words during playback"), value: widget.isAudioEnabled, onChanged: widget.onAudioChanged), ListTile(title: const Text("Voice Quality"), trailing: DropdownButton<AudioQuality>(value: widget.audioQuality, items: AudioQuality.values.map((q) => DropdownMenuItem(value: q, child: Text(q.name.toUpperCase()))).toList(), onChanged: (q) => widget.onAudioQualityChanged(q!)))]); }
 }
 
 class BibleSearchDelegate extends SearchDelegate<BibleMatch?> {
   final DatabaseService db;
-  BibleSearchDelegate(this.db);
-  @override String get searchFieldLabel => "Enter Phrase or Location (separate ranges with a comma)";
-  @override List<Widget>? buildActions(BuildContext context) => [IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')];
+  final String? initialQuery;
+  final List<BibleMatch>? initialResults;
+  final Function(String?, List<BibleMatch>?) onCacheUpdate;
+
+  BibleSearchDelegate(this.db, {this.initialQuery, this.initialResults, required this.onCacheUpdate}) {
+    if (initialQuery != null) query = initialQuery!;
+  }
+
+  @override String get searchFieldLabel => "Enter Phrase or Location";
+  @override List<Widget>? buildActions(BuildContext context) => [IconButton(icon: const Icon(Icons.clear), onPressed: () { query = ''; onCacheUpdate(null, null); })];
   @override Widget? buildLeading(BuildContext context) => IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
+  
   @override Widget buildResults(BuildContext context) {
+    if (query == initialQuery && initialResults != null) return _buildResultList(context, initialResults!);
     return FutureBuilder<List<BibleMatch>>(
       future: db.search(query),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
         if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text("No results found."));
-        final results = snapshot.data!;
-        final summary = query.contains(':') ? "$query ↦" : "$query ↦ {${results.map((m) => m.location).join(', ')}}";
-        return Column(
-          children: [
-            Container(width: double.maxFinite, padding: const EdgeInsets.all(12), color: Colors.brown[50], child: Row(children: [Expanded(child: Text(summary, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.brown))), IconButton(icon: const Icon(Icons.copy_all, size: 20), onPressed: () { Clipboard.setData(ClipboardData(text: summary)); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Summary copied to clipboard"))); })])),
-            Expanded(child: ListView.builder(itemCount: results.length, itemBuilder: (context, index) {
-              final m = results[index];
-              return ListTile(title: RichText(text: TextSpan(style: const TextStyle(color: Colors.black, fontSize: 14), children: _highlightVerseText(m.verse.text, m.phrase))), subtitle: Text(m.location, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)), trailing: IconButton(icon: const Icon(Icons.copy, size: 18), onPressed: () { Clipboard.setData(ClipboardData(text: "${m.phrase}(${m.location})")); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Phrase(Location) copied"))); }), onTap: () => close(context, m));
-            })),
-          ],
-        );
+        onCacheUpdate(query, snapshot.data);
+        return _buildResultList(context, snapshot.data!);
       },
     );
   }
+
+  Widget _buildResultList(BuildContext context, List<BibleMatch> results) {
+    final summary = query.contains(':') ? "$query ↦" : "$query ↦ {${results.length} found}";
+    return Column(children: [
+      Container(width: double.maxFinite, padding: const EdgeInsets.all(12), color: Colors.brown[50], child: Row(children: [Expanded(child: Text(summary, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.brown))), IconButton(icon: const Icon(Icons.copy_all, size: 20), onPressed: () { Clipboard.setData(ClipboardData(text: summary)); })])),
+      Expanded(child: ListView.builder(itemCount: results.length, itemBuilder: (context, index) {
+        final m = results[index];
+        return ListTile(title: RichText(text: TextSpan(style: const TextStyle(color: Colors.black, fontSize: 14), children: _highlightVerseText(m.verse.text, m.phrase))), subtitle: Text(m.location, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)), onTap: () => close(context, m));
+      }))
+    ]);
+  }
+
   List<TextSpan> _highlightVerseText(String verseText, String query) {
     if (query.isEmpty) return [TextSpan(text: verseText)];
     List<TextSpan> spans = []; final lowerVerse = verseText.toLowerCase(); final lowerQuery = query.toLowerCase(); int start = 0; int indexOfMatch;
@@ -479,7 +433,7 @@ class BibleSearchDelegate extends SearchDelegate<BibleMatch?> {
     if (start < verseText.length) spans.add(TextSpan(text: verseText.substring(start)));
     return spans;
   }
-  @override Widget buildSuggestions(BuildContext context) { if (query.length < 2) return const Center(child: Text("Enter at least 2 characters to search...")); return buildResults(context); }
+  @override Widget buildSuggestions(BuildContext context) { if (query.length < 2) return const Center(child: Text("Search Phrases...")); return buildResults(context); }
 }
 
 class VerseSelectorDialog extends StatefulWidget {

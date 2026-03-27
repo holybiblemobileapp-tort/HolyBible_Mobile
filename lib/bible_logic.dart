@@ -1,4 +1,5 @@
 import 'bible_model.dart';
+import 'package:flutter/material.dart';
 
 enum BibleViewStyle { standard, superscript, mathematics, mathematics2, mathematicsUnconstraint }
 
@@ -36,35 +37,66 @@ class BibleLogic {
     'Pre': 0, 'Gen': 1, 'Exo': 2, 'Lev': 3, 'Num': 4, 'Deu': 5, 'Jos': 6, 'Jud': 7, 'Rut': 8, '1Sa': 9, '2Sa': 10, '1Ki': 11, '2Ki': 12, '1Ch': 13, '2Ch': 14, 'Ezr': 15, 'Neh': 16, 'Est': 17, 'Job': 18, 'Psa': 19, 'Pro': 20, 'Ecc': 21, 'Son': 22, 'Isa': 23, 'Jer': 24, 'Lam': 25, 'Eze': 26, 'Dan': 27, 'Hos': 28, 'Joe': 29, 'Amo': 30, 'Oba': 31, 'Jon': 32, 'Mic': 33, 'Nah': 34, 'Hab': 35, 'Zep': 36, 'Hag': 37, 'Zec': 38, 'Mal': 39, 'Mat': 40, 'Mar': 41, 'Luk': 42, 'Joh': 43, 'Act': 44, 'Rom': 45, '1Co': 46, '2Co': 47, 'Gal': 48, 'Eph': 49, 'Phi': 50, 'Col': 51, '1Th': 52, '2Th': 53, '1Ti': 54, '2Ti': 55, 'Tit': 56, 'Heb': 58, 'Jam': 59, '1Pe': 60, '2Pe': 61, '1Jo': 62, '2Jo': 63, '3Jo': 64, 'Rev': 66
   };
 
-  static int getBookOrder(String location) {
-    final loc = parseLocation(location);
-    if (loc == null) return 999;
-    String abbr = loc.bookAbbr;
-    if (abbr == 'Phi' && loc.chapter == 0) return 57;
-    if (abbr == 'Jud' && loc.chapter == 0) return 65;
-    return _bookOrderMap[abbr] ?? 999;
-  }
-
   static String getReadingLabel(BibleViewStyle style) {
     switch (style) {
-      case BibleViewStyle.standard: return 'AKJV 1611 PCE';
+      case BibleViewStyle.standard: return 'KEY | AKJV 1611 PCE';
+      case BibleViewStyle.superscript: return 'ARRAY | Superscript KJV';
+      case BibleViewStyle.mathematics: return 'PROPORTION | MathKJVP';
+      case BibleViewStyle.mathematics2: return 'BALANCE | MathKJVS';
+      case BibleViewStyle.mathematicsUnconstraint: return 'JOIN | MathKJVT';
+    }
+  }
+
+  static String getStyleHeader(BibleViewStyle style) {
+    switch (style) {
+      case BibleViewStyle.standard: return 'KEY';
       case BibleViewStyle.superscript: return 'ARRAY';
-      case BibleViewStyle.mathematics: return 'MathKJVP';
-      case BibleViewStyle.mathematics2: return 'MathKJVS';
-      case BibleViewStyle.mathematicsUnconstraint: return 'MathKJVT';
+      case BibleViewStyle.mathematics: return 'PROPORTION';
+      case BibleViewStyle.mathematics2: return 'BALANCE';
+      case BibleViewStyle.mathematicsUnconstraint: return 'JOIN';
+    }
+  }
+
+  static String getStyleHoverTitle(BibleViewStyle style) {
+    switch (style) {
+      case BibleViewStyle.superscript: return 'HeightDepth:Length';
+      default: return 'HeightDepth:Length:Breadth';
+    }
+  }
+
+  static Color getMarginReferenceColor(BibleViewStyle style, bool isDarkMode) {
+    if (isDarkMode) return Colors.white70;
+    switch (style) {
+      case BibleViewStyle.mathematics: return Colors.green;
+      case BibleViewStyle.mathematics2: return Colors.blue;
+      case BibleViewStyle.mathematicsUnconstraint: return const Color(0xFFFF6347); // Tomato
+      default: return Colors.grey;
+    }
+  }
+
+  static Color getMathSymbolColor(BibleViewStyle style) {
+    switch (style) {
+      case BibleViewStyle.mathematics2: return Colors.orange;
+      case BibleViewStyle.mathematicsUnconstraint: return const Color(0xFFFFD700); // Gold
+      default: return Colors.red;
+    }
+  }
+
+  static String getBreadthDescription(BibleViewStyle style) {
+    switch (style) {
+      case BibleViewStyle.standard: return 'Breadth';
+      case BibleViewStyle.superscript: return 'Breadth = Counting One By One';
+      default: return 'Breadth = Tongue of the Mathematicians';
     }
   }
 
   static void clearCache() { _mathCache.clear(); }
 
-  static String formatLocation(String bookAbbr, int chapter, int verse, int start, int end, [int? totalWords]) {
-    final effectiveEnd = (end == 0 && totalWords != null) ? totalWords : end;
-    if (start == effectiveEnd && start != 0) return '$bookAbbr$chapter:$verse:$start';
-    if (effectiveEnd == 0) return '$bookAbbr$chapter:$verse:$start';
-    return '$bookAbbr$chapter:$verse:$start-$effectiveEnd';
+  static String formatLocation(String bookAbbr, int chapter, int verse, int start, int end, {bool isSuperscript = false}) {
+    if (isSuperscript) return '$bookAbbr$chapter:$verse';
+    if (start == end && start != 0) return '$bookAbbr$chapter:$verse:$start';
+    return '$bookAbbr$chapter:$verse:$start-$end';
   }
-
-  static String formatPhraseFunction(String phrase, String location) => '$phrase($location)';
 
   static BibleLocation? parseLocation(String loc) {
     try {
@@ -80,17 +112,12 @@ class BibleLogic {
   }
 
   static bool _isVerbContext(List<BibleWord> words, int index, String word) {
-    if (word != 'will' && word != 'might') return true; // Other words are handled normally
-    
+    if (word != 'will' && word != 'might') return true; 
     if (index > 0) {
       final prev = words[index - 1].text.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
-      // If preceded by an article or possessive, it's a NOUN
       const nounMarkers = {'the', 'a', 'an', 'my', 'thy', 'his', 'her', 'our', 'your', 'their'};
       if (nounMarkers.contains(prev)) return false;
     }
-    
-    // In PCE, "will" as a verb is usually followed by another word (not terminal)
-    // "thy will be done" -> "will" is preceded by "thy" (Noun marker) -> Correctly skipped.
     return true;
   }
 
@@ -153,7 +180,6 @@ class BibleLogic {
       final String rawText = bw.text.replaceAll('¶', '').trim();
       final String wordLower = rawText.toLowerCase().replaceAll(RegExp(r'[.,;:!?\(\)\[\]]'), '');
       
-      // 1. PARENTHESES.json multi-word overrides
       if (parenthesesMap != null) {
         String? parOverride; int overrideLength = 0;
         for (int len = 10; len >= 1; len--) {
@@ -176,23 +202,19 @@ class BibleLogic {
         }
       }
 
-      // 2. Automated Continuity Logic
       String? symbol = continuityMap[wordLower];
       bool isVerb = _isVerbContext(verse.styledWords, i, wordLower);
-      
       bool hasPunctuation = rawText.contains(RegExp(r'[.,;:!?]'));
       String punctuation = rawText.replaceAll(RegExp(r'[^.,;:!?]'), '');
       bool isStartOfVerse = i == 0;
       bool isOf = wordLower == 'of';
       bool precededByPunctuation = i > 0 && verse.styledWords[i-1].text.contains(RegExp(r'[.,;:!?]'));
       
-      bool inhibitOf = false;
-      bool inhibitFunction = false;
       bool shouldReplaceFunction = false;
+      bool inhibitFunction = false;
+      bool inhibitOf = false;
 
       if (isTertiary) {
-        inhibitOf = false;
-        inhibitFunction = false;
         shouldReplaceFunction = true;
       } else if (isSecondary) {
         inhibitOf = isStartOfVerse || (i == verse.styledWords.length - 1);
@@ -201,7 +223,6 @@ class BibleLogic {
         bool isSecondInSeq = i > 0 && isFunctionWord(i - 1) && !isFunctionWord(i - 2);
         shouldReplaceFunction = isIsolated || isSecondInSeq || precededByPunctuation;
       } else {
-        // MathKJVP
         inhibitOf = isStartOfVerse || precededByPunctuation || (i == verse.styledWords.length - 1);
         inhibitFunction = isStartOfVerse || hasPunctuation || precededByPunctuation;
         bool isIsolated = !isFunctionWord(i - 1) && !isFunctionWord(i + 1);
@@ -260,7 +281,6 @@ class BibleLogic {
 
   static String getStyledPhrase(BibleVerse verse, List<int> wordIndices, BibleViewStyle style, Map<String, String> cont, Map<String, String> par) {
     if (wordIndices.isEmpty) return "";
-    if (style == BibleViewStyle.standard) { return wordIndices.map((i) => verse.styledWords[i - 1].text.replaceAll('¶', '').trim()).join(' '); }
     final mathWords = applyContinuity(verse, cont, parenthesesMap: par, style: style);
     StringBuffer sb = StringBuffer();
     bool isFirst = true;
