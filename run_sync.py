@@ -3,8 +3,8 @@ import sys
 import os
 
 def run_aeneas(book_abbr, chapter):
-    # Ensure paths are absolute and quoted
-    audio_file = os.path.abspath(f"assets/audio/{book_abbr}{chapter}.mp3")
+    # Updated to .ogg to match Piper output
+    audio_file = os.path.abspath(f"assets/audio/{book_abbr}{chapter}.ogg")
     text_file = os.path.abspath(f"assets/sync/{book_abbr}{chapter}_words.txt")
     output_file = os.path.abspath(f"assets/sync/{book_abbr}{chapter}.json")
 
@@ -19,9 +19,6 @@ def run_aeneas(book_abbr, chapter):
     # Configuration string for Aeneas
     config = "task_language=eng|os_task_file_format=json|is_text_type=plain"
 
-    # Build the command list.
-    # On Windows, using subprocess without shell=True and with a list
-    # is the safest way to avoid pipe character issues.
     command = [
         sys.executable,
         "-m", "aeneas.tools.execute_task",
@@ -32,11 +29,8 @@ def run_aeneas(book_abbr, chapter):
     ]
 
     print(f"--- Starting Sync for {book_abbr} {chapter} ---")
-    print(f"Audio: {audio_file}")
-    print(f"Text:  {text_file}")
 
     try:
-        # Run without shell=True to prevent cmd.exe from misinterpreting '|'
         result = subprocess.run(
             command,
             capture_output=True,
@@ -55,10 +49,8 @@ def run_aeneas(book_abbr, chapter):
         print(f"SYSTEM ERROR: {str(e)}")
 
 if __name__ == "__main__":
-    # Get arguments from command line
     if len(sys.argv) < 3:
         print("Usage: python run_sync.py [BookAbbr] [Chapter]")
-        print("Example: python run_sync.py Gen 1")
     else:
         abbr = sys.argv[1]
         ch = sys.argv[2]

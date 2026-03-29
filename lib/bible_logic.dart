@@ -33,17 +33,31 @@ class BibleLogic {
   
   static final RegExp _terminalPunct = RegExp(r'[.,!?;:¶]');
 
+  static const Set<String> _wrappers = {
+    'a', 'an', 'the', 'all', 'his', 'her', 'my', 'your', 'our', 'their', 'its', 'thy', 'y', 
+    'most', 'those', 'these', 'this', 'that', 'mine', 'thine'
+  };
+
   static const Map<String, int> _bookOrderMap = {
     'Pre': 0, 'Gen': 1, 'Exo': 2, 'Lev': 3, 'Num': 4, 'Deu': 5, 'Jos': 6, 'Jud': 7, 'Rut': 8, '1Sa': 9, '2Sa': 10, '1Ki': 11, '2Ki': 12, '1Ch': 13, '2Ch': 14, 'Ezr': 15, 'Neh': 16, 'Est': 17, 'Job': 18, 'Psa': 19, 'Pro': 20, 'Ecc': 21, 'Son': 22, 'Isa': 23, 'Jer': 24, 'Lam': 25, 'Eze': 26, 'Dan': 27, 'Hos': 28, 'Joe': 29, 'Amo': 30, 'Oba': 31, 'Jon': 32, 'Mic': 33, 'Nah': 34, 'Hab': 35, 'Zep': 36, 'Hag': 37, 'Zec': 38, 'Mal': 39, 'Mat': 40, 'Mar': 41, 'Luk': 42, 'Joh': 43, 'Act': 44, 'Rom': 45, '1Co': 46, '2Co': 47, 'Gal': 48, 'Eph': 49, 'Phi': 50, 'Col': 51, '1Th': 52, '2Th': 53, '1Ti': 54, '2Ti': 55, 'Tit': 56, 'Heb': 58, 'Jam': 59, '1Pe': 60, '2Pe': 61, '1Jo': 62, '2Jo': 63, '3Jo': 64, 'Rev': 66
   };
 
+  static int getBookOrder(String location) {
+    final loc = parseLocation(location);
+    if (loc == null) return 999;
+    String abbr = loc.bookAbbr;
+    if (abbr == 'Phi' && loc.chapter == 0) return 57;
+    if (abbr == 'Jud' && loc.chapter == 0) return 65;
+    return _bookOrderMap[abbr] ?? 999;
+  }
+
   static String getReadingLabel(BibleViewStyle style) {
     switch (style) {
-      case BibleViewStyle.standard: return 'KEY | AKJV 1611 PCE';
-      case BibleViewStyle.superscript: return 'ARRAY | Superscript KJV';
-      case BibleViewStyle.mathematics: return 'PROPORTION | MathKJVP';
-      case BibleViewStyle.mathematics2: return 'BALANCE | MathKJVS';
-      case BibleViewStyle.mathematicsUnconstraint: return 'JOIN | MathKJVT';
+      case BibleViewStyle.standard: return 'AKJV 1611 PCE circa 1900';
+      case BibleViewStyle.superscript: return 'Superscript KJV';
+      case BibleViewStyle.mathematics: return 'MathKJVP';
+      case BibleViewStyle.mathematics2: return 'MathKJVS';
+      case BibleViewStyle.mathematicsUnconstraint: return 'MathKJVT';
     }
   }
 
@@ -115,7 +129,7 @@ class BibleLogic {
     if (word != 'will' && word != 'might') return true; 
     if (index > 0) {
       final prev = words[index - 1].text.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
-      const nounMarkers = {'the', 'a', 'an', 'my', 'thy', 'his', 'her', 'our', 'your', 'their'};
+      const nounMarkers = {'the', 'a', 'an', 'my', 'thy', 'his', 'her', 'our', 'your', 'their', 'all', 'its', 'mine', 'thine'};
       if (nounMarkers.contains(prev)) return false;
     }
     return true;
@@ -173,35 +187,11 @@ class BibleLogic {
       }
     }
 
-    Set<int> processedIndices = {};
     for (int i = 0; i < verse.styledWords.length; i++) {
-      if (processedIndices.contains(i)) continue;
       final bw = verse.styledWords[i];
       final String rawText = bw.text.replaceAll('¶', '').trim();
       final String wordLower = rawText.toLowerCase().replaceAll(RegExp(r'[.,;:!?\(\)\[\]]'), '');
       
-      if (parenthesesMap != null) {
-        String? parOverride; int overrideLength = 0;
-        for (int len = 10; len >= 1; len--) {
-          if (i + len > verse.styledWords.length) continue;
-          String phrase = verse.styledWords.sublist(i, i + len).map((w) => w.text.toLowerCase().replaceAll(RegExp(r'[.,;:!?\(\)\[\]]'), '')).join(' ');
-          if (parenthesesMap.containsKey(phrase)) { parOverride = parenthesesMap[phrase]; overrideLength = len; break; }
-        }
-        if (parOverride != null) {
-          String lastRaw = verse.styledWords[i + overrideLength - 1].text;
-          String punctuation = lastRaw.replaceAll(RegExp(r'[^.,;:!?]'), '');
-          String cleanOverride = parOverride.replaceAll(RegExp(r'[.,;:!?]$'), '');
-          bool startsWithBracket = cleanOverride.startsWith('(') || cleanOverride.startsWith('[');
-          result.add(MathWord(
-            original: bw, endIndex: bw.index + overrideLength - 1, displayId: '${verse.id}:${bw.index}',
-            parts: [ MathPart(cleanOverride, isRed: true, isParenthesis: true), if (punctuation.isNotEmpty) MathPart(punctuation) ],
-            hasLeadingSpace: i > 0 && !startsWithBracket,
-          ));
-          for (int k = 0; k < overrideLength; k++) processedIndices.add(i + k);
-          continue;
-        }
-      }
-
       String? symbol = continuityMap[wordLower];
       bool isVerb = _isVerbContext(verse.styledWords, i, wordLower);
       bool hasPunctuation = rawText.contains(RegExp(r'[.,;:!?]'));
@@ -240,7 +230,7 @@ class BibleLogic {
           parts.add(MathPart(punctuation));
         } else {
           parts.add(MathPart('(', isRed: true, isParenthesis: true, isOfReplacement: true));
-          openOfCount++;
+          openOfCount = 1;
         }
       } else if (symbol != null && isVerb && !inhibitFunction && shouldReplaceFunction) {
         if (openOfCount > 0) {
@@ -254,6 +244,14 @@ class BibleLogic {
         String cleanWord = rawText.replaceAll(RegExp(r'[.,;:!?]'), '');
         parts.add(MathPart(cleanWord, isItalic: bw.isItalic));
         if (punctuation.isNotEmpty) parts.add(MathPart(punctuation));
+        
+        // NUCLEAR NP-CAPTURE: Close 'of' parenthesis after non-modifier words to prevent runaways.
+        if (openOfCount > 0) {
+          if (!_wrappers.contains(wordLower) || hasPunctuation) {
+            closeParenthesis(parts, openOfCount);
+            openOfCount = 0;
+          }
+        }
       }
 
       bool isStrongPunct = rawText.contains(RegExp(r'[.!?;:]'));

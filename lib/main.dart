@@ -12,7 +12,7 @@ import 'audio_service.dart';
 import 'study_hub_view.dart';
 import 'bible_reader_view.dart';
 
-enum AppTheme { system, light, dark, midnight }
+enum AppTheme { system, light, dark, midnight, warmer }
 enum AppFont { system, serif, sansSerif, monospace }
 
 void main() async {
@@ -59,13 +59,38 @@ class _HolyBibleAppState extends State<HolyBibleApp> {
   }
 
   ThemeData _getTheme(bool isDark) {
-    final scaffoldBg = _selectedTheme == AppTheme.midnight ? Colors.black : (isDark ? const Color(0xFF1A1A1A) : const Color(0xFFFDFCF8));
+    Color scaffoldBg;
+    ColorScheme colorScheme;
+
+    switch (_selectedTheme) {
+      case AppTheme.midnight:
+        scaffoldBg = Colors.black;
+        colorScheme = ColorScheme.fromSeed(seedColor: Colors.brown, brightness: Brightness.dark, background: Colors.black);
+        break;
+      case AppTheme.warmer:
+        scaffoldBg = const Color(0xFFF4ECD8);
+        colorScheme = ColorScheme.fromSeed(seedColor: Colors.brown, brightness: Brightness.light, background: const Color(0xFFF4ECD8));
+        break;
+      case AppTheme.light:
+        scaffoldBg = Colors.white;
+        colorScheme = ColorScheme.fromSeed(seedColor: Colors.brown, brightness: Brightness.light, background: Colors.white);
+        break;
+      case AppTheme.dark:
+        scaffoldBg = const Color(0xFF1A1A1A);
+        colorScheme = ColorScheme.fromSeed(seedColor: Colors.brown, brightness: Brightness.dark);
+        break;
+      case AppTheme.system:
+        scaffoldBg = isDark ? const Color(0xFF1A1A1A) : const Color(0xFFFDFCF8);
+        colorScheme = ColorScheme.fromSeed(seedColor: Colors.brown, brightness: isDark ? Brightness.dark : Brightness.light);
+        break;
+    }
+
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.brown, brightness: isDark ? Brightness.dark : Brightness.light),
+      colorScheme: colorScheme,
       scaffoldBackgroundColor: scaffoldBg,
-      textTheme: _getTextTheme(isDark ? Brightness.dark : Brightness.light),
-      appBarTheme: AppBarTheme(backgroundColor: isDark ? Colors.black : Colors.brown[50], centerTitle: true),
+      textTheme: _getTextTheme(colorScheme.brightness),
+      appBarTheme: AppBarTheme(backgroundColor: colorScheme.surfaceVariant.withOpacity(0.5), centerTitle: true),
     );
   }
 
@@ -82,7 +107,7 @@ class _HolyBibleAppState extends State<HolyBibleApp> {
       debugShowCheckedModeBanner: false,
       theme: _getTheme(false),
       darkTheme: _getTheme(true),
-      themeMode: _selectedTheme == AppTheme.light ? ThemeMode.light : (_selectedTheme == AppTheme.dark || _selectedTheme == AppTheme.midnight ? ThemeMode.dark : ThemeMode.system),
+      themeMode: _selectedTheme == AppTheme.light || _selectedTheme == AppTheme.warmer ? ThemeMode.light : (_selectedTheme == AppTheme.dark || _selectedTheme == AppTheme.midnight ? ThemeMode.dark : ThemeMode.system),
       home: MainNavigation(
         selectedTheme: _selectedTheme,
         selectedFont: _selectedFont,
@@ -212,7 +237,6 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   void _onVerseSelected(int verse) {
     setState(() {
       _selectedVerse = verse;
-      _selectedWordIndex = 1;
       _dailyVerse = _chapterVerses.firstWhere((v) => v.verse == verse);
     });
     _bibleTabController.animateTo(3); // Go to Read
@@ -288,11 +312,17 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(children: [const Text("Authorized King James Version 1611 Pure Cambridge Edition circa 1900", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), Text("\$${BibleLogic.getReadingLabel(_currentStyle)}\$", style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.brown[700]))]),
+        title: const Text("Authorized King James Version 1611 Pure Cambridge Edition circa 1900", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(icon: const Icon(Icons.search, color: Colors.brown), onPressed: _handleSearch),
           IconButton(icon: const Icon(Icons.refresh, color: Colors.brown), onPressed: () => setState(() { _initData(); })),
-          DropdownButton<BibleViewStyle>(value: _currentStyle, underline: const SizedBox(), icon: const Icon(Icons.style, color: Colors.brown), items: BibleViewStyle.values.map((s) => DropdownMenuItem(value: s, child: Text(BibleLogic.getReadingLabel(s), style: const TextStyle(fontSize: 12)))).toList(), onChanged: (s) => _saveStyle(s!)),
+          DropdownButton<BibleViewStyle>(
+            value: _currentStyle, 
+            underline: const SizedBox(), 
+            icon: const Icon(Icons.style, color: Colors.brown), 
+            items: BibleViewStyle.values.map((s) => DropdownMenuItem(value: s, child: Text(BibleLogic.getReadingLabel(s), style: const TextStyle(fontSize: 12)))).toList(), 
+            onChanged: (s) => _saveStyle(s!)
+          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -301,7 +331,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
         children: [
           _dailyVerse == null ? const Center(child: Text("Loading...")) : _buildWelcomePage(_dailyVerse!),
           _buildBibleNavigator(),
-          StudyHubView(onJumpToLocation: _jumpToLocation, currentStyle: _currentStyle, fontSize: widget.fontSize, isDarkMode: widget.selectedTheme == AppTheme.midnight),
+          StudyHubView(onJumpToLocation: _jumpToLocation, currentStyle: _currentStyle, continuityMap: _continuityMap, parenthesesMap: _parenthesesMap, fontSize: widget.fontSize, isDarkMode: widget.selectedTheme == AppTheme.midnight),
           _buildSettingsTab(),
         ],
       ),
@@ -339,20 +369,23 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
       highlightPhrase: _jumpHighlightPhrase, 
       onChapterChange: (direction) => _onChapterNavigate(direction), 
       onFontSizeChanged: widget.onFontSizeChanged, 
-      onAudioChanged: widget.onAudioChanged
+      onAudioChanged: widget.onAudioChanged,
+      onStyleChanged: (s) => _saveStyle(s),
     );
   }
 
   Widget _buildWelcomePage(BibleVerse v) {
     return SingleChildScrollView(padding: const EdgeInsets.all(16.0), child: Column(children: [
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Image.asset('assets/IGoToTheFather1B.PNG', height: 80), const SizedBox(width: 15), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Daily Bread', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), IconButton(icon: const Icon(Icons.edit, size: 20, color: Colors.brown), onPressed: () async { final r = await showDialog<Map<String, dynamic>>(context: context, builder: (c) => const VerseSelectorDialog()); if (r != null) { _jumpToLocation("${r['book']} ${r['chapter']}:${r['verse']}"); setState(() => _selectedIndex = 0); } }, tooltip: "Change Verse")]), Text('${v.bookAbbreviation}${v.chapter}:${v.verse}:1-${v.wordCount}', style: const TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500))]))]),
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Image.asset('assets/IGoToTheFather1B.PNG', height: 80), const SizedBox(width: 15), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Daily Bread', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), IconButton(icon: const Icon(Icons.edit, size: 20, color: Colors.brown), onPressed: () async { final r = await showDialog<Map<String, dynamic>>(context: context, builder: (c) => const VerseSelectorDialog()); if (r != null) { _dailyVerse = null; _jumpToLocation("${r['book']} ${r['chapter']}:${r['verse']}"); setState(() => _selectedIndex = 0); } }, tooltip: "Change Verse")]), Text('${v.bookAbbreviation}${v.chapter}:${v.verse}:1-${v.wordCount}', style: const TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500))]))]),
       const SizedBox(height: 24),
+      const Text("COMPARE ALL 5 VERSIONS", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2, color: Colors.brown)),
+      const SizedBox(height: 16),
       InkWell(onTap: () => _jumpToLocation("${v.bookAbbreviation}${v.chapter}:${v.verse}"), child: Column(children: [
-        _buildComparisonRow("AKJV 1611 PCE circa 1900", v, _continuityMap, _parenthesesMap, BibleViewStyle.standard),
-        _buildComparisonRow("ARRAY | Superscript KJV", v, _continuityMap, _parenthesesMap, BibleViewStyle.superscript),
-        _buildComparisonRow("PROPORTION | MathKJVP", v, _continuityMap, _parenthesesMap, BibleViewStyle.mathematics),
-        _buildComparisonRow("BALANCE | MathKJVS", v, _continuityMap, _parenthesesMap, BibleViewStyle.mathematics2),
-        _buildComparisonRow("JOIN | MathKJVT", v, _continuityMap, _parenthesesMap, BibleViewStyle.mathematicsUnconstraint),
+        _buildComparisonRow(BibleLogic.getReadingLabel(BibleViewStyle.standard), v, _continuityMap, _parenthesesMap, BibleViewStyle.standard),
+        _buildComparisonRow(BibleLogic.getReadingLabel(BibleViewStyle.superscript), v, _continuityMap, _parenthesesMap, BibleViewStyle.superscript),
+        _buildComparisonRow(BibleLogic.getReadingLabel(BibleViewStyle.mathematics), v, _continuityMap, _parenthesesMap, BibleViewStyle.mathematics),
+        _buildComparisonRow(BibleLogic.getReadingLabel(BibleViewStyle.mathematics2), v, _continuityMap, _parenthesesMap, BibleViewStyle.mathematics2),
+        _buildComparisonRow(BibleLogic.getReadingLabel(BibleViewStyle.mathematicsUnconstraint), v, _continuityMap, _parenthesesMap, BibleViewStyle.mathematicsUnconstraint),
       ])),
     ]));
   }
@@ -381,7 +414,29 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
     ])));
   }
 
-  Widget _buildSettingsTab() { return ListView(padding: const EdgeInsets.all(16), children: [const Text("Appearance", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)), const SizedBox(height: 16), ListTile(title: const Text("Theme Mode"), trailing: DropdownButton<AppTheme>(value: widget.selectedTheme, items: AppTheme.values.map((t) => DropdownMenuItem(value: t, child: Text(t.name.toUpperCase()))).toList(), onChanged: (t) => widget.onThemeChanged(t!))), ListTile(title: const Text("App Font"), trailing: DropdownButton<AppFont>(value: widget.selectedFont, items: AppFont.values.map((f) => DropdownMenuItem(value: f, child: Text(f.name.toUpperCase()))).toList(), onChanged: (f) => widget.onFontChanged(f!))), const Divider(), const Text("Audio Settings", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)), SwitchListTile(title: const Text("Enable Audio Sync"), subtitle: const Text("Highlights words during playback"), value: widget.isAudioEnabled, onChanged: widget.onAudioChanged), ListTile(title: const Text("Voice Quality"), trailing: DropdownButton<AudioQuality>(value: widget.audioQuality, items: AudioQuality.values.map((q) => DropdownMenuItem(value: q, child: Text(q.name.toUpperCase()))).toList(), onChanged: (q) => widget.onAudioQualityChanged(q!)))]); }
+  Widget _buildSettingsTab() { 
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      const Text("Appearance", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)),
+      const SizedBox(height: 16),
+      ListTile(title: const Text("Theme Mode"), trailing: DropdownButton<AppTheme>(value: widget.selectedTheme, items: AppTheme.values.map((t) => DropdownMenuItem(value: t, child: Text(t.name.toUpperCase()))).toList(), onChanged: (t) => widget.onThemeChanged(t!))),
+      ListTile(title: const Text("App Font"), trailing: DropdownButton<AppFont>(value: widget.selectedFont, items: AppFont.values.map((f) => DropdownMenuItem(value: f, child: Text(f.name.toUpperCase()))).toList(), onChanged: (f) => widget.onFontChanged(f!))),
+      const SizedBox(height: 8),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Font Size: ${widget.fontSize.toInt()}", style: const TextStyle(fontWeight: FontWeight.w500)),
+            Slider(min: 12, max: 32, divisions: 20, value: widget.fontSize, onChanged: (v) => widget.onFontSizeChanged(v)),
+          ],
+        ),
+      ),
+      const Divider(),
+      const Text("Audio Settings", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)),
+      SwitchListTile(title: const Text("Enable Audio Sync"), subtitle: const Text("Highlights words during playback"), value: widget.isAudioEnabled, onChanged: widget.onAudioChanged),
+      ListTile(title: const Text("Voice Quality"), trailing: DropdownButton<AudioQuality>(value: widget.audioQuality, items: AudioQuality.values.map((q) => DropdownMenuItem(value: q, child: Text(q.name.toUpperCase()))).toList(), onChanged: (q) => widget.onAudioQualityChanged(q!)))
+    ]); 
+  }
 }
 
 class BibleSearchDelegate extends SearchDelegate<BibleMatch?> {
