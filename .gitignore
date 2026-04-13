@@ -42,6 +42,20 @@ android/.gradle/
 /android/app/profile
 /android/app/release
 
+# Large Assets and Data (Ignore to speed up Git)
+assets/audio/
+assets/sync/
+assets/*.xlsx
+assets/*.docx
+assets/*.docx
+assets/~$*
+
+# Temporary and generated files
+*.png
+*.bat
+*.py
+temp_text.txt
+
 # Symbolication related
 app.*.symbols
 
