@@ -1,0 +1,484 @@
+{
+ "fragments": [
+  {
+   "begin": "0.000",
+   "children": [],
+   "end": "0.160",
+   "id": "f000001",
+   "language": "eng",
+   "lines": [
+    "A"
+   ]
+  },
+  {
+   "begin": "0.160",
+   "children": [],
+   "end": "0.440",
+   "id": "f000002",
+   "language": "eng",
+   "lines": [
+    "Song"
+   ]
+  },
+  {
+   "begin": "0.440",
+   "children": [],
+   "end": "0.600",
+   "id": "f000003",
+   "language": "eng",
+   "lines": [
+    "of"
+   ]
+  },
+  {
+   "begin": "0.600",
+   "children": [],
+   "end": "1.520",
+   "id": "f000004",
+   "language": "eng",
+   "lines": [
+    "degrees."
+   ]
+  },
+  {
+   "begin": "1.520",
+   "children": [],
+   "end": "2.320",
+   "id": "f000005",
+   "language": "eng",
+   "lines": [
+    "Behold,"
+   ]
+  },
+  {
+   "begin": "2.320",
+   "children": [],
+   "end": "2.600",
+   "id": "f000006",
+   "language": "eng",
+   "lines": [
+    "bless"
+   ]
+  },
+  {
+   "begin": "2.600",
+   "children": [],
+   "end": "2.640",
+   "id": "f000007",
+   "language": "eng",
+   "lines": [
+    "ye"
+   ]
+  },
+  {
+   "begin": "2.640",
+   "children": [],
+   "end": "2.840",
+   "id": "f000008",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "2.840",
+   "children": [],
+   "end": "3.480",
+   "id": "f000009",
+   "language": "eng",
+   "lines": [
+    "LORD,"
+   ]
+  },
+  {
+   "begin": "3.480",
+   "children": [],
+   "end": "3.600",
+   "id": "f000010",
+   "language": "eng",
+   "lines": [
+    "all"
+   ]
+  },
+  {
+   "begin": "3.600",
+   "children": [],
+   "end": "3.760",
+   "id": "f000011",
+   "language": "eng",
+   "lines": [
+    "ye"
+   ]
+  },
+  {
+   "begin": "3.760",
+   "children": [],
+   "end": "4.360",
+   "id": "f000012",
+   "language": "eng",
+   "lines": [
+    "servants"
+   ]
+  },
+  {
+   "begin": "4.360",
+   "children": [],
+   "end": "4.360",
+   "id": "f000013",
+   "language": "eng",
+   "lines": [
+    "of"
+   ]
+  },
+  {
+   "begin": "4.360",
+   "children": [],
+   "end": "4.440",
+   "id": "f000014",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "4.440",
+   "children": [],
+   "end": "5.160",
+   "id": "f000015",
+   "language": "eng",
+   "lines": [
+    "LORD,"
+   ]
+  },
+  {
+   "begin": "5.160",
+   "children": [],
+   "end": "5.360",
+   "id": "f000016",
+   "language": "eng",
+   "lines": [
+    "which"
+   ]
+  },
+  {
+   "begin": "5.360",
+   "children": [],
+   "end": "5.440",
+   "id": "f000017",
+   "language": "eng",
+   "lines": [
+    "by"
+   ]
+  },
+  {
+   "begin": "5.440",
+   "children": [],
+   "end": "5.680",
+   "id": "f000018",
+   "language": "eng",
+   "lines": [
+    "night"
+   ]
+  },
+  {
+   "begin": "5.680",
+   "children": [],
+   "end": "6.080",
+   "id": "f000019",
+   "language": "eng",
+   "lines": [
+    "stand"
+   ]
+  },
+  {
+   "begin": "6.080",
+   "children": [],
+   "end": "6.080",
+   "id": "f000020",
+   "language": "eng",
+   "lines": [
+    "in"
+   ]
+  },
+  {
+   "begin": "6.080",
+   "children": [],
+   "end": "6.240",
+   "id": "f000021",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "6.240",
+   "children": [],
+   "end": "6.640",
+   "id": "f000022",
+   "language": "eng",
+   "lines": [
+    "house"
+   ]
+  },
+  {
+   "begin": "6.640",
+   "children": [],
+   "end": "6.640",
+   "id": "f000023",
+   "language": "eng",
+   "lines": [
+    "of"
+   ]
+  },
+  {
+   "begin": "6.640",
+   "children": [],
+   "end": "6.680",
+   "id": "f000024",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "6.680",
+   "children": [],
+   "end": "7.600",
+   "id": "f000025",
+   "language": "eng",
+   "lines": [
+    "LORD."
+   ]
+  },
+  {
+   "begin": "7.600",
+   "children": [],
+   "end": "7.920",
+   "id": "f000026",
+   "language": "eng",
+   "lines": [
+    "Lift"
+   ]
+  },
+  {
+   "begin": "7.920",
+   "children": [],
+   "end": "7.920",
+   "id": "f000027",
+   "language": "eng",
+   "lines": [
+    "up"
+   ]
+  },
+  {
+   "begin": "7.920",
+   "children": [],
+   "end": "7.920",
+   "id": "f000028",
+   "language": "eng",
+   "lines": [
+    "your"
+   ]
+  },
+  {
+   "begin": "7.920",
+   "children": [],
+   "end": "7.920",
+   "id": "f000029",
+   "language": "eng",
+   "lines": [
+    "hands"
+   ]
+  },
+  {
+   "begin": "7.920",
+   "children": [],
+   "end": "7.960",
+   "id": "f000030",
+   "language": "eng",
+   "lines": [
+    "in"
+   ]
+  },
+  {
+   "begin": "7.960",
+   "children": [],
+   "end": "8.680",
+   "id": "f000031",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "8.680",
+   "children": [],
+   "end": "9.720",
+   "id": "f000032",
+   "language": "eng",
+   "lines": [
+    "sanctuary,"
+   ]
+  },
+  {
+   "begin": "9.720",
+   "children": [],
+   "end": "9.960",
+   "id": "f000033",
+   "language": "eng",
+   "lines": [
+    "and"
+   ]
+  },
+  {
+   "begin": "9.960",
+   "children": [],
+   "end": "10.200",
+   "id": "f000034",
+   "language": "eng",
+   "lines": [
+    "bless"
+   ]
+  },
+  {
+   "begin": "10.200",
+   "children": [],
+   "end": "10.240",
+   "id": "f000035",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "10.240",
+   "children": [],
+   "end": "10.760",
+   "id": "f000036",
+   "language": "eng",
+   "lines": [
+    "LORD."
+   ]
+  },
+  {
+   "begin": "10.760",
+   "children": [],
+   "end": "11.080",
+   "id": "f000037",
+   "language": "eng",
+   "lines": [
+    "The"
+   ]
+  },
+  {
+   "begin": "11.080",
+   "children": [],
+   "end": "11.400",
+   "id": "f000038",
+   "language": "eng",
+   "lines": [
+    "LORD"
+   ]
+  },
+  {
+   "begin": "11.400",
+   "children": [],
+   "end": "11.640",
+   "id": "f000039",
+   "language": "eng",
+   "lines": [
+    "that"
+   ]
+  },
+  {
+   "begin": "11.640",
+   "children": [],
+   "end": "11.920",
+   "id": "f000040",
+   "language": "eng",
+   "lines": [
+    "made"
+   ]
+  },
+  {
+   "begin": "11.920",
+   "children": [],
+   "end": "12.240",
+   "id": "f000041",
+   "language": "eng",
+   "lines": [
+    "heaven"
+   ]
+  },
+  {
+   "begin": "12.240",
+   "children": [],
+   "end": "12.400",
+   "id": "f000042",
+   "language": "eng",
+   "lines": [
+    "and"
+   ]
+  },
+  {
+   "begin": "12.400",
+   "children": [],
+   "end": "12.720",
+   "id": "f000043",
+   "language": "eng",
+   "lines": [
+    "earth"
+   ]
+  },
+  {
+   "begin": "12.720",
+   "children": [],
+   "end": "12.720",
+   "id": "f000044",
+   "language": "eng",
+   "lines": [
+    "bless"
+   ]
+  },
+  {
+   "begin": "12.720",
+   "children": [],
+   "end": "12.800",
+   "id": "f000045",
+   "language": "eng",
+   "lines": [
+    "thee"
+   ]
+  },
+  {
+   "begin": "12.800",
+   "children": [],
+   "end": "13.200",
+   "id": "f000046",
+   "language": "eng",
+   "lines": [
+    "out"
+   ]
+  },
+  {
+   "begin": "13.200",
+   "children": [],
+   "end": "13.440",
+   "id": "f000047",
+   "language": "eng",
+   "lines": [
+    "of"
+   ]
+  },
+  {
+   "begin": "13.440",
+   "children": [],
+   "end": "14.240",
+   "id": "f000048",
+   "language": "eng",
+   "lines": [
+    "Zion."
+   ]
+  }
+ ]
+}

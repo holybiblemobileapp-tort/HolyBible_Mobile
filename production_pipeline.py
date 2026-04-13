@@ -5,7 +5,6 @@ import base64
 import requests
 
 # --- CONFIGURATION ---
-# Use environment variables for security in Open Source projects
 API_KEY = os.environ.get("ELEVENLABS_API_KEY", "your_api_key_here")
 VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
 
@@ -17,18 +16,6 @@ TEMP_DIR = "production/temp"
 def ensure_dirs():
     for d in [OUTPUT_AUDIO_DIR, OUTPUT_SYNC_DIR, TEMP_DIR]:
         os.makedirs(d, exist_ok=True)
-
-def list_available_voices():
-    url = "https://api.elevenlabs.io/v1/voices"
-    headers = {"xi-api-key": API_KEY}
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        voices = response.json().get('voices', [])
-        print("\n--- Available Voices on your account ---")
-        for v in voices:
-            print(f"Name: {v['name']}, ID: {v['voice_id']}")
-        return voices
-    return []
 
 def get_chapter_text(book_abbr, chapter):
     if not os.path.exists(BIBLE_JSON_PATH):
@@ -51,7 +38,7 @@ def generate_voice_with_timestamps(text, filename, voice_id):
         print("Error: ELEVENLABS_API_KEY environment variable not set.")
         return None, None
 
-    print(f"Generating voice & timestamps for {filename} using voice {voice_id}...")
+    print(f"Generating high-quality voice for {filename}...")
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps"
     headers = {"Content-Type": "application/json", "xi-api-key": API_KEY}
     data = {
@@ -86,10 +73,10 @@ def generate_voice_with_timestamps(text, filename, voice_id):
     return temp_mp3, word_sync
 
 def encode_to_ogg(input_audio, output_ogg):
-    print(f"Encoding {output_ogg}...")
-    # Switched to .ogg container which is more compatible with Windows Media Foundation
+    print(f"Encoding {output_ogg} (High Quality Opus)...")
     try:
-        subprocess.run(["ffmpeg", "-i", input_audio, "-c:a", "libopus", "-b:a", "32k", "-vbr", "on", "-y", output_ogg], check=True, capture_output=True)
+        # Resample to 48kHz for libopus compatibility and set bitrate to 64k
+        subprocess.run(["ffmpeg", "-i", input_audio, "-ar", "48000", "-c:a", "libopus", "-b:a", "64k", "-vbr", "on", "-y", output_ogg], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
         print(f"Error encoding to ogg: {e}")
     except FileNotFoundError:
@@ -110,6 +97,8 @@ def process_chapter(book_abbr, chapter):
         print(f"\nSUCCESS: Produced {filename}.ogg and {filename}.json")
 
 if __name__ == "__main__":
-    # Example usage
-    # process_chapter("Gen", 1)
-    pass
+    import sys
+    if len(sys.argv) > 2:
+        process_chapter(sys.argv[1], int(sys.argv[2]))
+    else:
+        print("Usage: python production_pipeline.py <BookAbbr> <Chapter>")

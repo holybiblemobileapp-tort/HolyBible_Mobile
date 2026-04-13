@@ -54,6 +54,7 @@ class _BibleReaderViewState extends State<BibleReaderView> {
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<Set<String>> _selectionNotifier = ValueNotifier({});
   final ValueNotifier<String?> _activeWordNotifier = ValueNotifier(null);
+  final Map<int, GlobalKey> _verseKeys = {};
   String? _anchorWordId;
 
   static const Map<String, int> _paulineLastChapters = {
@@ -69,14 +70,25 @@ class _BibleReaderViewState extends State<BibleReaderView> {
       if (mounted) _activeWordNotifier.value = id;
     });
     
+    _updateKeys();
     if (widget.targetVerse != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToTarget());
+    }
+  }
+
+  void _updateKeys() {
+    _verseKeys.clear();
+    for (var v in widget.allVersesOfChapter) {
+      _verseKeys[v.verse] = GlobalKey();
     }
   }
 
   @override
   void didUpdateWidget(BibleReaderView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.allVersesOfChapter != oldWidget.allVersesOfChapter) {
+      _updateKeys();
+    }
     if (widget.targetVerse != oldWidget.targetVerse && widget.targetVerse != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToTarget());
     }
@@ -84,17 +96,14 @@ class _BibleReaderViewState extends State<BibleReaderView> {
 
   void _scrollToTarget() {
     if (!mounted || widget.targetVerse == null) return;
-    final List<BibleVerse> displayVerses = _getDisplayVerses();
-    int index = displayVerses.indexWhere((v) => v.verse == widget.targetVerse);
-    if (index != -1) {
-      double targetOffset = index * 100.0; 
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          targetOffset.clamp(0, _scrollController.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeOut,
-        );
-      }
+    final key = _verseKeys[widget.targetVerse];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 800),
+        curve: Curves.easeInOut,
+        alignment: 0.1, // Scroll to near the top
+      );
     }
   }
 
@@ -154,7 +163,7 @@ class _BibleReaderViewState extends State<BibleReaderView> {
       return idxA.compareTo(idxB);
     });
     StringBuffer sb = StringBuffer();
-    String currentBook = ""; int lastChapter = -1; int lastVerse = -1;
+    String currentBook = ""; int lastChapter = -1; int lastVerse = -1; bool lastWasFullEnd = false;
     List<String> locRefs = [];
     for (int vId in sortedVerseIds) {
       final v = widget.allVersesOfChapter.firstWhere((v) => v.id == vId);
@@ -181,44 +190,70 @@ class _BibleReaderViewState extends State<BibleReaderView> {
       }
       
       String loc = "${v.bookAbbreviation}${v.chapter}:${v.verse}:${ranges.join(', ')}";
-      if (currentBook == v.bookAbbreviation && v.chapter == lastChapter && v.verse == lastVerse + 1) {
-        locRefs.add("_$loc"); // Adjacent contiguous underscore
+      bool isAdjacent = currentBook == v.bookAbbreviation && v.chapter == lastChapter && v.verse == lastVerse + 1;
+      bool isContiguous = isAdjacent && lastWasFullEnd && indices.first == 1;
+
+      if (isContiguous) {
+        locRefs.add("_$loc");
       } else {
         if (locRefs.isNotEmpty) locRefs.add(", ");
         locRefs.add(loc);
       }
-      currentBook = v.bookAbbreviation; lastChapter = v.chapter; lastVerse = v.verse;
+      currentBook = v.bookAbbreviation; 
+      lastChapter = v.chapter; 
+      lastVerse = v.verse;
+      lastWasFullEnd = (indices.isNotEmpty && indices.last == v.wordCount);
     }
     return sb.toString() + "(" + locRefs.join("").replaceAll(", _", "_") + ")";
   }
 
   Widget _buildHeader(bool isMath) {
     final textColor = isMath ? Colors.white : Colors.brown;
+    final activeVerse = widget.targetVerse != null 
+        ? widget.allVersesOfChapter.firstWhere((v) => v.verse == widget.targetVerse, orElse: () => widget.allVersesOfChapter.first)
+        : widget.allVersesOfChapter.first;
+
+    final String selectionLabel = "${widget.bookName} | Ch ${widget.chapter} | V ${activeVerse.verse} | R 1-${activeVerse.wordCount}";
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8), 
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
       decoration: BoxDecoration(
-        color: isMath ? Colors.grey[900] : Colors.brown[50],
-        border: Border(bottom: BorderSide(color: isMath ? Colors.white12 : Colors.brown.withOpacity(0.2)))
+        color: isMath ? Colors.black : Colors.brown[50],
+        border: Border(bottom: BorderSide(color: isMath ? Colors.white24 : Colors.brown.withOpacity(0.3)))
       ),
       child: Row(
         children: [
-          IconButton(icon: Icon(Icons.chevron_left, color: textColor, size: 32), onPressed: widget.onChapterChange != null ? () => widget.onChapterChange!(-1) : null), 
-          Expanded(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(widget.bookName, style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 16)), Text('Chapter ${widget.chapter}', style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 12))])), 
-          IconButton(icon: Icon(Icons.chevron_right, color: textColor, size: 32), onPressed: widget.onChapterChange != null ? () => widget.onChapterChange!(1) : null),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: Icon(widget.isAudioEnabled ? Icons.volume_up : Icons.volume_off, color: textColor, size: 24),
-            onPressed: () => widget.onAudioChanged(!widget.isAudioEnabled),
-            tooltip: "Toggle Audio",
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Text(
+                selectionLabel,
+                style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 13, letterSpacing: 0.5),
+              ),
+            ),
           ),
-          PopupMenuButton<BibleViewStyle>(
-            icon: Icon(Icons.style, color: textColor),
-            initialValue: widget.currentStyle,
-            onSelected: widget.onStyleChanged,
-            itemBuilder: (context) => BibleViewStyle.values.map((s) => PopupMenuItem(value: s, child: Text(BibleLogic.getReadingLabel(s), style: const TextStyle(fontSize: 12)))).toList(),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(icon: Icon(Icons.chevron_left, color: textColor, size: 28), onPressed: widget.onChapterChange != null ? () => widget.onChapterChange!(-1) : null, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+              IconButton(icon: Icon(Icons.chevron_right, color: textColor, size: 28), onPressed: widget.onChapterChange != null ? () => widget.onChapterChange!(1) : null, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+              const SizedBox(width: 12),
+              IconButton(
+                icon: Icon(widget.isAudioEnabled ? Icons.volume_up : Icons.volume_off, color: textColor, size: 22),
+                onPressed: () => widget.onAudioChanged(!widget.isAudioEnabled),
+                padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 8),
+              PopupMenuButton<BibleViewStyle>(
+                icon: Icon(Icons.style, color: textColor, size: 22),
+                padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                onSelected: widget.onStyleChanged,
+                itemBuilder: (context) => BibleViewStyle.values.map((s) => PopupMenuItem(value: s, child: Text(BibleLogic.getReadingLabel(s), style: const TextStyle(fontSize: 12)))).toList(),
+              ),
+            ],
           ),
-        ]
-      )
+        ],
+      ),
     );
   }
 
@@ -240,13 +275,15 @@ class _BibleReaderViewState extends State<BibleReaderView> {
         ),
         child: Row(
           children: [
-            SizedBox(width: 45, child: Tooltip(message: hover, child: Text(headerLabel, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: isMath ? Colors.white70 : Colors.black87)))),
+            SizedBox(width: 85, child: Tooltip(message: hover, child: Text(headerLabel, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: isMath ? Colors.white70 : Colors.black87)))),
             const SizedBox(width: 10),
-            Expanded(child: Text(isMath ? "TONGUE OF THE MATHEMATICIANS" : "READ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: isMath ? Colors.white70 : Colors.black87))),
-            Tooltip(
+            Expanded(child: Tooltip(
               message: breadthDesc,
-              child: Icon(Icons.info_outline, size: 16, color: isMath ? Colors.white54 : Colors.grey),
-            ),
+              child: Text(
+                widget.currentStyle == BibleViewStyle.superscript ? "counting one by one, to find out the account:" : (isMath ? "TONGUE OF THE MATHEMATICIANS" : "READ"), 
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: isMath ? Colors.white70 : Colors.black87)
+              ),
+            )),
           ],
         )
       ),
@@ -265,14 +302,34 @@ class _BibleReaderViewState extends State<BibleReaderView> {
           controller: _scrollController,
           child: ListView.builder(
             controller: _scrollController, 
-            padding: const EdgeInsets.all(16), 
+            padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100), 
             itemCount: displayVerses.length, 
             itemBuilder: (context, index) {
               final v = displayVerses[index];
               final bool isTarget = v.verse == widget.targetVerse;
               final bool isVerse0 = v.verse == 0;
-              if (isVerse0) return Container(padding: const EdgeInsets.symmetric(vertical: 16.0), child: Center(child: _buildVerseContent(v, customScale: 0.8, forceItalic: true, isVerse0: true)));
-              return Container(padding: const EdgeInsets.symmetric(vertical: 4.0), margin: const EdgeInsets.only(bottom: 8), decoration: isTarget ? BoxDecoration(color: Colors.amber.withOpacity(0.1), border: Border.all(color: Colors.amber[300]!, width: 0.5), borderRadius: BorderRadius.circular(4)) : null, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 45, child: Text('${v.verse}', style: TextStyle(fontSize: widget.fontSize * 0.6, color: marginColor, fontWeight: FontWeight.bold))), Expanded(child: _buildVerseContent(v))]));
+              
+              if (isVerse0) return Container(key: _verseKeys[v.verse], padding: const EdgeInsets.symmetric(vertical: 16.0), child: Center(child: _buildVerseContent(v, customScale: 0.8, forceItalic: true, isVerse0: true)));
+              
+              final loc = BibleLogic.formatLocation(v.bookAbbreviation, v.chapter, v.verse, 1, v.wordCount, isSuperscript: widget.currentStyle == BibleViewStyle.superscript);
+              
+              return Container(
+                key: _verseKeys[v.verse],
+                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0), 
+                margin: const EdgeInsets.only(bottom: 8), 
+                decoration: isTarget ? BoxDecoration(
+                  color: widget.isDarkMode ? Colors.amber.withOpacity(0.15) : Colors.amber.withOpacity(0.1), 
+                  border: Border.all(color: Colors.amber[400]!, width: 1.0), 
+                  borderRadius: BorderRadius.circular(4)
+                ) : null, 
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start, 
+                  children: [
+                    SizedBox(width: 85, child: Text(loc, style: TextStyle(fontSize: widget.fontSize * 0.55, color: marginColor, fontWeight: FontWeight.bold))), 
+                    Expanded(child: _buildVerseContent(v))
+                  ]
+                )
+              );
             }
           ),
         ),
@@ -285,29 +342,29 @@ class _BibleReaderViewState extends State<BibleReaderView> {
     if (widget.chapter == 0) {
       for (var v in widget.allVersesOfChapter) {
         double scale = 1.0; bool isItalic = false; bool isBold = false; bool skip = false;
-        switch (v.verse) { case 0: skip = true; break; case 1: scale = 0.85; break; case 2: scale = 2.4; isBold = true; break; case 3: scale = 0.85; break; case 4: scale = 1.5; isBold = true; break; case 5: case 6: case 7: case 8: scale = 0.95; break; case 9: scale = 1.0; isItalic = true; break; case 10: case 11: scale = 1.1; break; default: scale = 0.8; }
-        if (!skip) items.add(_buildParagraph([v], center: true, customScale: scale, forceItalic: isItalic, forceBold: isBold));
+        switch (v.verse) { case 0: skip = true; break; case 1: scale = 0.85; break; case 2: scale = 2.4; isBold = true; break; case 3: scale = 0.85; break; case 4: scale = 1.5; isBold = true; break; case 5: case 6: case 7: scale = 0.95; break; case 8: scale = 0.95; break; case 9: scale = 1.0; isItalic = true; break; case 10: case 11: scale = 1.1; break; default: scale = 0.8; }
+        if (!skip) items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: scale, forceItalic: isItalic, forceBold: isBold)));
       }
     } else if (widget.chapter == 1) {
       List<BibleVerse> currentParagraph = [];
       for (int i = 0; i < widget.allVersesOfChapter.length; i++) {
         final v = widget.allVersesOfChapter[i];
-        if (v.verse == 0) { items.add(_buildParagraph([v], center: true, customScale: 1.4, forceBold: true)); items.add(const SizedBox(height: 24)); }
-        else if (v.verse >= 1 && v.verse <= 7) { items.add(_buildParagraph([v], center: true, customScale: 1.1, forceBold: true)); }
-        else { currentParagraph.add(v); if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) { items.add(_buildParagraph(currentParagraph)); currentParagraph = []; } }
+        if (v.verse == 0) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.4, forceBold: true))); items.add(const SizedBox(height: 24)); }
+        else if (v.verse >= 1 && v.verse <= 7) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.1, forceBold: true))); }
+        else { currentParagraph.add(v); if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) { items.add(Container(key: _verseKeys[currentParagraph.first.verse], child: _buildParagraph(currentParagraph))); currentParagraph = []; } }
       }
     } else {
       List<BibleVerse> currentParagraph = [];
       for (int i = 0; i < widget.allVersesOfChapter.length; i++) {
         final v = widget.allVersesOfChapter[i];
         if (widget.chapter == 17) {
-           if (v.verse >= 0 && v.verse <= 2) { items.add(_buildParagraph([v], center: true, customScale: 1.3, forceBold: true)); if (v.verse == 2) items.add(const SizedBox(height: 24)); continue; }
-           else if (v.verse >= 3 && v.verse <= 5) { currentParagraph.add(v); if (v.text.contains('¶') || v.verse == 5) { items.add(_buildParagraph(currentParagraph)); currentParagraph = []; } continue; }
-           else if (v.verse >= 6) { items.add(_buildParagraph([v], customScale: 1.0)); continue; }
+           if (v.verse >= 0 && v.verse <= 2) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.3, forceBold: true))); if (v.verse == 2) items.add(const SizedBox(height: 24)); continue; }
+           else if (v.verse >= 3 && v.verse <= 5) { currentParagraph.add(v); if (v.text.contains('¶') || v.verse == 5) { items.add(Container(key: _verseKeys[currentParagraph.first.verse], child: _buildParagraph(currentParagraph))); currentParagraph = []; } continue; }
+           else if (v.verse >= 6) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], customScale: 1.0))); continue; }
         }
-        if (v.verse == 0) { items.add(_buildParagraph([v], center: true, customScale: 1.4, forceBold: true)); items.add(const SizedBox(height: 24)); }
-        else if (v.verse == 1 && widget.chapter >= 2 && widget.chapter <= 16) { items.add(_buildParagraph([v], center: true, customScale: 1.2, forceBold: true)); items.add(const SizedBox(height: 16)); }
-        else { currentParagraph.add(v); if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) { items.add(_buildParagraph(currentParagraph)); currentParagraph = []; } }
+        if (v.verse == 0) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.4, forceBold: true))); items.add(const SizedBox(height: 24)); }
+        else if (v.verse == 1 && widget.chapter >= 2 && widget.chapter <= 16) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.2, forceBold: true))); items.add(const SizedBox(height: 16)); }
+        else { currentParagraph.add(v); if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) { items.add(Container(key: _verseKeys[currentParagraph.first.verse], child: _buildParagraph(currentParagraph))); currentParagraph = []; } }
       }
     }
     return ListView(controller: _scrollController, padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8), children: items);
@@ -326,24 +383,51 @@ class _BibleReaderViewState extends State<BibleReaderView> {
   Widget _renderWord(BibleVerse v, MathWord mw, {double? customSize, bool isBold = false, bool isItalic = false, bool forceSpace = false}) {
     final wordId = '${v.id}:${mw.original.index}';
     final bool isMath = widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript;
+    
+    // Check if this word is part of the highlighted phrase
+    bool isPhraseHighlight = false;
+    if (widget.highlightPhrase != null && widget.targetVerse == v.verse) {
+      final String wordText = mw.original.text.toLowerCase().replaceAll(RegExp(r'[.,;:!?¶\(\)\[\]]'), '');
+      final List<String> highlightWords = widget.highlightPhrase!.toLowerCase().split(RegExp(r'\s+'));
+      if (highlightWords.contains(wordText)) {
+        isPhraseHighlight = true;
+      }
+    }
+
     return ValueListenableBuilder<String?>(valueListenable: _activeWordNotifier, builder: (context, activeId, _) {
       return ValueListenableBuilder<Set<String>>(valueListenable: _selectionNotifier, builder: (context, selection, _) {
         final bool isSelected = selection.contains(wordId); final bool isActive = activeId == wordId;
         final Color symbolColor = BibleLogic.getMathSymbolColor(widget.currentStyle);
-        return GestureDetector(onTap: () => _handleWordTap(wordId), onLongPress: () => _handleLongPress(wordId), child: Container(decoration: BoxDecoration(color: isSelected ? Colors.blue.withOpacity(0.3) : (isActive ? Colors.amber.withOpacity(0.4) : Colors.transparent), borderRadius: BorderRadius.circular(2)), child: RichText(text: TextSpan(children: [
-          if (mw.hasLeadingSpace || forceSpace) const TextSpan(text: ' '),
-          ...mw.parts.map((p) {
-            if (widget.currentStyle == BibleViewStyle.superscript && !p.isParenthesis) {
-               return TextSpan(children: [TextSpan(text: p.text, style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black, fontSize: customSize ?? widget.fontSize, fontStyle: (p.isItalic || isItalic) ? FontStyle.italic : FontStyle.normal, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)), WidgetSpan(child: Transform.translate(offset: const Offset(0, -8), child: Text('${mw.original.index}', style: TextStyle(fontSize: (customSize ?? widget.fontSize) * 0.35, color: Colors.blue, fontWeight: FontWeight.bold))))]);
-            }
-            final bool isPilcrow = p.text.contains('¶');
-            // Radiant Rendering: Functional "Heat" (Red/Gold) vs Mathematical "Breadth" (Cyan/Blue Bloom)
-            final List<Shadow>? shadows = isMath ? [
-              Shadow(blurRadius: p.isRed ? 4.0 : 2.0, color: p.isRed ? symbolColor : Colors.cyanAccent.withOpacity(0.5))
-            ] : null;
-            return TextSpan(text: p.text, style: TextStyle(color: isPilcrow ? Colors.red : (p.isRed ? symbolColor : (isMath || widget.isDarkMode ? Colors.white : Colors.black)), fontSize: customSize ?? widget.fontSize, fontWeight: (isPilcrow || p.isRed || isBold) ? FontWeight.bold : FontWeight.normal, fontStyle: (p.isItalic || isItalic) ? FontStyle.italic : FontStyle.normal, fontFamily: isMath ? 'Courier' : null, shadows: shadows));
-          })
-        ]))));
+        
+        Decoration? decoration;
+        if (isSelected) {
+          decoration = BoxDecoration(color: Colors.blue.withOpacity(0.3), borderRadius: BorderRadius.circular(2));
+        } else if (isActive) {
+          decoration = BoxDecoration(color: Colors.amber.withOpacity(0.4), borderRadius: BorderRadius.circular(2));
+        } else if (isPhraseHighlight) {
+          decoration = BoxDecoration(color: Colors.amber.withOpacity(0.25), border: Border(bottom: BorderSide(color: Colors.amber[700]!, width: 1.5)));
+        }
+
+        return GestureDetector(
+          onTap: () => _handleWordTap(wordId), 
+          onLongPress: () => _handleLongPress(wordId), 
+          child: Container(
+            decoration: decoration, 
+            child: RichText(text: TextSpan(children: [
+              if (mw.hasLeadingSpace || forceSpace) const TextSpan(text: ' '),
+              ...mw.parts.map((p) {
+                if (widget.currentStyle == BibleViewStyle.superscript && !p.isParenthesis) {
+                   return TextSpan(children: [TextSpan(text: p.text, style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black, fontSize: customSize ?? widget.fontSize, fontStyle: (p.isItalic || isItalic) ? FontStyle.italic : FontStyle.normal, fontWeight: (isBold || isPhraseHighlight) ? FontWeight.bold : FontWeight.normal)), WidgetSpan(child: Transform.translate(offset: const Offset(0, -8), child: Text('${mw.original.index}', style: TextStyle(fontSize: (customSize ?? widget.fontSize) * 0.35, color: Colors.blue, fontWeight: FontWeight.bold))))]);
+                }
+                final bool isPilcrow = p.text.contains('¶');
+                final List<Shadow>? shadows = isMath ? [
+                  Shadow(blurRadius: p.isRed ? 4.0 : 2.0, color: p.isRed ? symbolColor : Colors.cyanAccent.withOpacity(0.5))
+                ] : null;
+                return TextSpan(text: p.text, style: TextStyle(color: isPilcrow ? Colors.red : (p.isRed ? symbolColor : (isMath || widget.isDarkMode ? Colors.white : Colors.black)), fontSize: customSize ?? widget.fontSize, fontWeight: (isPilcrow || p.isRed || isBold || isPhraseHighlight) ? FontWeight.bold : FontWeight.normal, fontStyle: (p.isItalic || isItalic) ? FontStyle.italic : FontStyle.normal, fontFamily: isMath ? 'Courier' : null, shadows: shadows));
+              })
+            ]))
+          )
+        );
       });
     });
   }

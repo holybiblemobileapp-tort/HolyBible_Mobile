@@ -10,6 +10,11 @@ class BibleWord {
     required this.isItalic,
     required this.index,
   });
+
+  Map<String, dynamic> toJson() => {
+    't': text,
+    'i': isItalic ? 1 : 0,
+  };
 }
 
 class BibleVerse {
@@ -37,20 +42,36 @@ class BibleVerse {
 
   String get text => styledWords.map((w) => w.text).join(' ');
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'book': book,
+    'abbr': bookAbbreviation,
+    'chapter': chapter,
+    'verse': verse,
+    'BKORDER': bookOrder,
+    'BKCHAPVERSE': bookChapterVerse,
+    'words_data': jsonEncode(styledWords.map((w) => w.toJson()).toList()),
+    'word_count': wordCount,
+  };
+
   factory BibleVerse.fromJson(Map<String, dynamic> json) {
-    int count = int.tryParse((json['WORDCOUNT'] ?? json['word_count'])?.toString() ?? '0') ?? 0;
     List<BibleWord> words = [];
     
     if (json['words_data'] != null) {
-      List<dynamic> data = jsonDecode(json['words_data']);
-      for (int i = 0; i < data.length; i++) {
-        words.add(BibleWord(
-          text: data[i]['t']?.toString() ?? '',
-          isItalic: data[i]['i'] == 1,
-          index: i + 1
-        ));
-      }
-    } else {
+      try {
+        List<dynamic> data = jsonDecode(json['words_data']);
+        for (int i = 0; i < data.length; i++) {
+          words.add(BibleWord(
+            text: data[i]['t']?.toString() ?? '',
+            isItalic: data[i]['i'] == 1,
+            index: i + 1
+          ));
+        }
+      } catch (_) {}
+    } 
+    
+    if (words.isEmpty) {
+      int count = int.tryParse((json['WORDCOUNT'] ?? json['word_count'])?.toString() ?? '0') ?? 0;
       bool inBrackets = false;
       for (int i = 1; i <= count; i++) {
         String rawWord = json[i.toString()]?.toString() ?? '';
@@ -75,7 +96,7 @@ class BibleVerse {
       bookOrder: int.tryParse((json['BKORDER'] ?? '0').toString()) ?? 0,
       bookChapterVerse: json['BKCHAPVERSE']?.toString() ?? '$abbr$ch:$v',
       styledWords: words,
-      wordCount: count,
+      wordCount: words.length,
     );
   }
 }
@@ -117,7 +138,7 @@ class DictionaryEntry {
   final String createdAt;
   final int n;
   final String place;
-  final String finding; // "Automated Finding" or "Manual Finding"
+  final String finding;
 
   DictionaryEntry({
     this.id, 

@@ -1,0 +1,2804 @@
+{
+ "fragments": [
+  {
+   "begin": "0.000",
+   "children": [],
+   "end": "0.280",
+   "id": "f000001",
+   "language": "eng",
+   "lines": [
+    "Then"
+   ]
+  },
+  {
+   "begin": "0.280",
+   "children": [],
+   "end": "0.600",
+   "id": "f000002",
+   "language": "eng",
+   "lines": [
+    "Job"
+   ]
+  },
+  {
+   "begin": "0.600",
+   "children": [],
+   "end": "1.040",
+   "id": "f000003",
+   "language": "eng",
+   "lines": [
+    "answered"
+   ]
+  },
+  {
+   "begin": "1.040",
+   "children": [],
+   "end": "1.200",
+   "id": "f000004",
+   "language": "eng",
+   "lines": [
+    "and"
+   ]
+  },
+  {
+   "begin": "1.200",
+   "children": [],
+   "end": "1.640",
+   "id": "f000005",
+   "language": "eng",
+   "lines": [
+    "said,"
+   ]
+  },
+  {
+   "begin": "1.640",
+   "children": [],
+   "end": "1.800",
+   "id": "f000006",
+   "language": "eng",
+   "lines": [
+    "Even"
+   ]
+  },
+  {
+   "begin": "1.800",
+   "children": [],
+   "end": "2.200",
+   "id": "f000007",
+   "language": "eng",
+   "lines": [
+    "to"
+   ]
+  },
+  {
+   "begin": "2.200",
+   "children": [],
+   "end": "2.360",
+   "id": "f000008",
+   "language": "eng",
+   "lines": [
+    "day"
+   ]
+  },
+  {
+   "begin": "2.360",
+   "children": [],
+   "end": "2.640",
+   "id": "f000009",
+   "language": "eng",
+   "lines": [
+    "is"
+   ]
+  },
+  {
+   "begin": "2.640",
+   "children": [],
+   "end": "2.720",
+   "id": "f000010",
+   "language": "eng",
+   "lines": [
+    "my"
+   ]
+  },
+  {
+   "begin": "2.720",
+   "children": [],
+   "end": "3.280",
+   "id": "f000011",
+   "language": "eng",
+   "lines": [
+    "complaint"
+   ]
+  },
+  {
+   "begin": "3.280",
+   "children": [],
+   "end": "3.960",
+   "id": "f000012",
+   "language": "eng",
+   "lines": [
+    "bitter:"
+   ]
+  },
+  {
+   "begin": "3.960",
+   "children": [],
+   "end": "4.120",
+   "id": "f000013",
+   "language": "eng",
+   "lines": [
+    "my"
+   ]
+  },
+  {
+   "begin": "4.120",
+   "children": [],
+   "end": "4.440",
+   "id": "f000014",
+   "language": "eng",
+   "lines": [
+    "stroke"
+   ]
+  },
+  {
+   "begin": "4.440",
+   "children": [],
+   "end": "4.600",
+   "id": "f000015",
+   "language": "eng",
+   "lines": [
+    "is"
+   ]
+  },
+  {
+   "begin": "4.600",
+   "children": [],
+   "end": "4.920",
+   "id": "f000016",
+   "language": "eng",
+   "lines": [
+    "heavier"
+   ]
+  },
+  {
+   "begin": "4.920",
+   "children": [],
+   "end": "5.040",
+   "id": "f000017",
+   "language": "eng",
+   "lines": [
+    "than"
+   ]
+  },
+  {
+   "begin": "5.040",
+   "children": [],
+   "end": "5.240",
+   "id": "f000018",
+   "language": "eng",
+   "lines": [
+    "my"
+   ]
+  },
+  {
+   "begin": "5.240",
+   "children": [],
+   "end": "5.560",
+   "id": "f000019",
+   "language": "eng",
+   "lines": [
+    "groaning."
+   ]
+  },
+  {
+   "begin": "5.560",
+   "children": [],
+   "end": "5.560",
+   "id": "f000020",
+   "language": "eng",
+   "lines": [
+    "Oh"
+   ]
+  },
+  {
+   "begin": "5.560",
+   "children": [],
+   "end": "5.560",
+   "id": "f000021",
+   "language": "eng",
+   "lines": [
+    "that"
+   ]
+  },
+  {
+   "begin": "5.560",
+   "children": [],
+   "end": "5.560",
+   "id": "f000022",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "5.560",
+   "children": [],
+   "end": "5.960",
+   "id": "f000023",
+   "language": "eng",
+   "lines": [
+    "knew"
+   ]
+  },
+  {
+   "begin": "5.960",
+   "children": [],
+   "end": "6.680",
+   "id": "f000024",
+   "language": "eng",
+   "lines": [
+    "where"
+   ]
+  },
+  {
+   "begin": "6.680",
+   "children": [],
+   "end": "7.120",
+   "id": "f000025",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "7.120",
+   "children": [],
+   "end": "7.280",
+   "id": "f000026",
+   "language": "eng",
+   "lines": [
+    "might"
+   ]
+  },
+  {
+   "begin": "7.280",
+   "children": [],
+   "end": "7.600",
+   "id": "f000027",
+   "language": "eng",
+   "lines": [
+    "find"
+   ]
+  },
+  {
+   "begin": "7.600",
+   "children": [],
+   "end": "7.840",
+   "id": "f000028",
+   "language": "eng",
+   "lines": [
+    "him!"
+   ]
+  },
+  {
+   "begin": "7.840",
+   "children": [],
+   "end": "8.360",
+   "id": "f000029",
+   "language": "eng",
+   "lines": [
+    "that"
+   ]
+  },
+  {
+   "begin": "8.360",
+   "children": [],
+   "end": "8.560",
+   "id": "f000030",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "8.560",
+   "children": [],
+   "end": "8.760",
+   "id": "f000031",
+   "language": "eng",
+   "lines": [
+    "might"
+   ]
+  },
+  {
+   "begin": "8.760",
+   "children": [],
+   "end": "9.080",
+   "id": "f000032",
+   "language": "eng",
+   "lines": [
+    "come"
+   ]
+  },
+  {
+   "begin": "9.080",
+   "children": [],
+   "end": "9.200",
+   "id": "f000033",
+   "language": "eng",
+   "lines": [
+    "even"
+   ]
+  },
+  {
+   "begin": "9.200",
+   "children": [],
+   "end": "9.400",
+   "id": "f000034",
+   "language": "eng",
+   "lines": [
+    "to"
+   ]
+  },
+  {
+   "begin": "9.400",
+   "children": [],
+   "end": "9.800",
+   "id": "f000035",
+   "language": "eng",
+   "lines": [
+    "his"
+   ]
+  },
+  {
+   "begin": "9.800",
+   "children": [],
+   "end": "9.920",
+   "id": "f000036",
+   "language": "eng",
+   "lines": [
+    "seat!"
+   ]
+  },
+  {
+   "begin": "9.920",
+   "children": [],
+   "end": "9.920",
+   "id": "f000037",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "9.920",
+   "children": [],
+   "end": "10.400",
+   "id": "f000038",
+   "language": "eng",
+   "lines": [
+    "would"
+   ]
+  },
+  {
+   "begin": "10.400",
+   "children": [],
+   "end": "10.880",
+   "id": "f000039",
+   "language": "eng",
+   "lines": [
+    "order"
+   ]
+  },
+  {
+   "begin": "10.880",
+   "children": [],
+   "end": "11.000",
+   "id": "f000040",
+   "language": "eng",
+   "lines": [
+    "my"
+   ]
+  },
+  {
+   "begin": "11.000",
+   "children": [],
+   "end": "11.360",
+   "id": "f000041",
+   "language": "eng",
+   "lines": [
+    "cause"
+   ]
+  },
+  {
+   "begin": "11.360",
+   "children": [],
+   "end": "11.680",
+   "id": "f000042",
+   "language": "eng",
+   "lines": [
+    "before"
+   ]
+  },
+  {
+   "begin": "11.680",
+   "children": [],
+   "end": "11.920",
+   "id": "f000043",
+   "language": "eng",
+   "lines": [
+    "him,"
+   ]
+  },
+  {
+   "begin": "11.920",
+   "children": [],
+   "end": "12.320",
+   "id": "f000044",
+   "language": "eng",
+   "lines": [
+    "and"
+   ]
+  },
+  {
+   "begin": "12.320",
+   "children": [],
+   "end": "12.640",
+   "id": "f000045",
+   "language": "eng",
+   "lines": [
+    "fill"
+   ]
+  },
+  {
+   "begin": "12.640",
+   "children": [],
+   "end": "12.920",
+   "id": "f000046",
+   "language": "eng",
+   "lines": [
+    "my"
+   ]
+  },
+  {
+   "begin": "12.920",
+   "children": [],
+   "end": "13.080",
+   "id": "f000047",
+   "language": "eng",
+   "lines": [
+    "mouth"
+   ]
+  },
+  {
+   "begin": "13.080",
+   "children": [],
+   "end": "13.200",
+   "id": "f000048",
+   "language": "eng",
+   "lines": [
+    "with"
+   ]
+  },
+  {
+   "begin": "13.200",
+   "children": [],
+   "end": "14.240",
+   "id": "f000049",
+   "language": "eng",
+   "lines": [
+    "arguments."
+   ]
+  },
+  {
+   "begin": "14.240",
+   "children": [],
+   "end": "14.560",
+   "id": "f000050",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "14.560",
+   "children": [],
+   "end": "14.560",
+   "id": "f000051",
+   "language": "eng",
+   "lines": [
+    "would"
+   ]
+  },
+  {
+   "begin": "14.560",
+   "children": [],
+   "end": "14.760",
+   "id": "f000052",
+   "language": "eng",
+   "lines": [
+    "know"
+   ]
+  },
+  {
+   "begin": "14.760",
+   "children": [],
+   "end": "14.880",
+   "id": "f000053",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "14.880",
+   "children": [],
+   "end": "15.560",
+   "id": "f000054",
+   "language": "eng",
+   "lines": [
+    "words"
+   ]
+  },
+  {
+   "begin": "15.560",
+   "children": [],
+   "end": "16.120",
+   "id": "f000055",
+   "language": "eng",
+   "lines": [
+    "which"
+   ]
+  },
+  {
+   "begin": "16.120",
+   "children": [],
+   "end": "16.280",
+   "id": "f000056",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "16.280",
+   "children": [],
+   "end": "16.280",
+   "id": "f000057",
+   "language": "eng",
+   "lines": [
+    "would"
+   ]
+  },
+  {
+   "begin": "16.280",
+   "children": [],
+   "end": "16.320",
+   "id": "f000058",
+   "language": "eng",
+   "lines": [
+    "answer"
+   ]
+  },
+  {
+   "begin": "16.320",
+   "children": [],
+   "end": "16.520",
+   "id": "f000059",
+   "language": "eng",
+   "lines": [
+    "me,"
+   ]
+  },
+  {
+   "begin": "16.520",
+   "children": [],
+   "end": "16.600",
+   "id": "f000060",
+   "language": "eng",
+   "lines": [
+    "and"
+   ]
+  },
+  {
+   "begin": "16.600",
+   "children": [],
+   "end": "17.440",
+   "id": "f000061",
+   "language": "eng",
+   "lines": [
+    "understand"
+   ]
+  },
+  {
+   "begin": "17.440",
+   "children": [],
+   "end": "17.560",
+   "id": "f000062",
+   "language": "eng",
+   "lines": [
+    "what"
+   ]
+  },
+  {
+   "begin": "17.560",
+   "children": [],
+   "end": "17.640",
+   "id": "f000063",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "17.640",
+   "children": [],
+   "end": "17.800",
+   "id": "f000064",
+   "language": "eng",
+   "lines": [
+    "would"
+   ]
+  },
+  {
+   "begin": "17.800",
+   "children": [],
+   "end": "18.200",
+   "id": "f000065",
+   "language": "eng",
+   "lines": [
+    "say"
+   ]
+  },
+  {
+   "begin": "18.200",
+   "children": [],
+   "end": "18.520",
+   "id": "f000066",
+   "language": "eng",
+   "lines": [
+    "unto"
+   ]
+  },
+  {
+   "begin": "18.520",
+   "children": [],
+   "end": "18.960",
+   "id": "f000067",
+   "language": "eng",
+   "lines": [
+    "me."
+   ]
+  },
+  {
+   "begin": "18.960",
+   "children": [],
+   "end": "19.160",
+   "id": "f000068",
+   "language": "eng",
+   "lines": [
+    "Will"
+   ]
+  },
+  {
+   "begin": "19.160",
+   "children": [],
+   "end": "19.280",
+   "id": "f000069",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "19.280",
+   "children": [],
+   "end": "19.640",
+   "id": "f000070",
+   "language": "eng",
+   "lines": [
+    "plead"
+   ]
+  },
+  {
+   "begin": "19.640",
+   "children": [],
+   "end": "20.000",
+   "id": "f000071",
+   "language": "eng",
+   "lines": [
+    "against"
+   ]
+  },
+  {
+   "begin": "20.000",
+   "children": [],
+   "end": "20.120",
+   "id": "f000072",
+   "language": "eng",
+   "lines": [
+    "me"
+   ]
+  },
+  {
+   "begin": "20.120",
+   "children": [],
+   "end": "20.280",
+   "id": "f000073",
+   "language": "eng",
+   "lines": [
+    "with"
+   ]
+  },
+  {
+   "begin": "20.280",
+   "children": [],
+   "end": "20.440",
+   "id": "f000074",
+   "language": "eng",
+   "lines": [
+    "his"
+   ]
+  },
+  {
+   "begin": "20.440",
+   "children": [],
+   "end": "20.720",
+   "id": "f000075",
+   "language": "eng",
+   "lines": [
+    "great"
+   ]
+  },
+  {
+   "begin": "20.720",
+   "children": [],
+   "end": "21.120",
+   "id": "f000076",
+   "language": "eng",
+   "lines": [
+    "power?"
+   ]
+  },
+  {
+   "begin": "21.120",
+   "children": [],
+   "end": "21.920",
+   "id": "f000077",
+   "language": "eng",
+   "lines": [
+    "No;"
+   ]
+  },
+  {
+   "begin": "21.920",
+   "children": [],
+   "end": "21.960",
+   "id": "f000078",
+   "language": "eng",
+   "lines": [
+    "but"
+   ]
+  },
+  {
+   "begin": "21.960",
+   "children": [],
+   "end": "22.240",
+   "id": "f000079",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "22.240",
+   "children": [],
+   "end": "22.440",
+   "id": "f000080",
+   "language": "eng",
+   "lines": [
+    "would"
+   ]
+  },
+  {
+   "begin": "22.440",
+   "children": [],
+   "end": "22.560",
+   "id": "f000081",
+   "language": "eng",
+   "lines": [
+    "put"
+   ]
+  },
+  {
+   "begin": "22.560",
+   "children": [],
+   "end": "23.040",
+   "id": "f000082",
+   "language": "eng",
+   "lines": [
+    "strength"
+   ]
+  },
+  {
+   "begin": "23.040",
+   "children": [],
+   "end": "23.320",
+   "id": "f000083",
+   "language": "eng",
+   "lines": [
+    "in"
+   ]
+  },
+  {
+   "begin": "23.320",
+   "children": [],
+   "end": "23.360",
+   "id": "f000084",
+   "language": "eng",
+   "lines": [
+    "me."
+   ]
+  },
+  {
+   "begin": "23.360",
+   "children": [],
+   "end": "23.880",
+   "id": "f000085",
+   "language": "eng",
+   "lines": [
+    "There"
+   ]
+  },
+  {
+   "begin": "23.880",
+   "children": [],
+   "end": "23.960",
+   "id": "f000086",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "23.960",
+   "children": [],
+   "end": "24.400",
+   "id": "f000087",
+   "language": "eng",
+   "lines": [
+    "righteous"
+   ]
+  },
+  {
+   "begin": "24.400",
+   "children": [],
+   "end": "24.560",
+   "id": "f000088",
+   "language": "eng",
+   "lines": [
+    "might"
+   ]
+  },
+  {
+   "begin": "24.560",
+   "children": [],
+   "end": "24.720",
+   "id": "f000089",
+   "language": "eng",
+   "lines": [
+    "dispute"
+   ]
+  },
+  {
+   "begin": "24.720",
+   "children": [],
+   "end": "24.720",
+   "id": "f000090",
+   "language": "eng",
+   "lines": [
+    "with"
+   ]
+  },
+  {
+   "begin": "24.720",
+   "children": [],
+   "end": "25.080",
+   "id": "f000091",
+   "language": "eng",
+   "lines": [
+    "him;"
+   ]
+  },
+  {
+   "begin": "25.080",
+   "children": [],
+   "end": "25.440",
+   "id": "f000092",
+   "language": "eng",
+   "lines": [
+    "so"
+   ]
+  },
+  {
+   "begin": "25.440",
+   "children": [],
+   "end": "26.160",
+   "id": "f000093",
+   "language": "eng",
+   "lines": [
+    "should"
+   ]
+  },
+  {
+   "begin": "26.160",
+   "children": [],
+   "end": "26.360",
+   "id": "f000094",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "26.360",
+   "children": [],
+   "end": "26.480",
+   "id": "f000095",
+   "language": "eng",
+   "lines": [
+    "be"
+   ]
+  },
+  {
+   "begin": "26.480",
+   "children": [],
+   "end": "26.480",
+   "id": "f000096",
+   "language": "eng",
+   "lines": [
+    "delivered"
+   ]
+  },
+  {
+   "begin": "26.480",
+   "children": [],
+   "end": "26.640",
+   "id": "f000097",
+   "language": "eng",
+   "lines": [
+    "for"
+   ]
+  },
+  {
+   "begin": "26.640",
+   "children": [],
+   "end": "26.920",
+   "id": "f000098",
+   "language": "eng",
+   "lines": [
+    "ever"
+   ]
+  },
+  {
+   "begin": "26.920",
+   "children": [],
+   "end": "27.480",
+   "id": "f000099",
+   "language": "eng",
+   "lines": [
+    "from"
+   ]
+  },
+  {
+   "begin": "27.480",
+   "children": [],
+   "end": "27.720",
+   "id": "f000100",
+   "language": "eng",
+   "lines": [
+    "my"
+   ]
+  },
+  {
+   "begin": "27.720",
+   "children": [],
+   "end": "28.160",
+   "id": "f000101",
+   "language": "eng",
+   "lines": [
+    "judge."
+   ]
+  },
+  {
+   "begin": "28.160",
+   "children": [],
+   "end": "29.480",
+   "id": "f000102",
+   "language": "eng",
+   "lines": [
+    "Behold,"
+   ]
+  },
+  {
+   "begin": "29.480",
+   "children": [],
+   "end": "29.560",
+   "id": "f000103",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "29.560",
+   "children": [],
+   "end": "29.720",
+   "id": "f000104",
+   "language": "eng",
+   "lines": [
+    "go"
+   ]
+  },
+  {
+   "begin": "29.720",
+   "children": [],
+   "end": "30.280",
+   "id": "f000105",
+   "language": "eng",
+   "lines": [
+    "forward,"
+   ]
+  },
+  {
+   "begin": "30.280",
+   "children": [],
+   "end": "30.280",
+   "id": "f000106",
+   "language": "eng",
+   "lines": [
+    "but"
+   ]
+  },
+  {
+   "begin": "30.280",
+   "children": [],
+   "end": "30.520",
+   "id": "f000107",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "30.520",
+   "children": [],
+   "end": "30.720",
+   "id": "f000108",
+   "language": "eng",
+   "lines": [
+    "is"
+   ]
+  },
+  {
+   "begin": "30.720",
+   "children": [],
+   "end": "30.880",
+   "id": "f000109",
+   "language": "eng",
+   "lines": [
+    "not"
+   ]
+  },
+  {
+   "begin": "30.880",
+   "children": [],
+   "end": "31.240",
+   "id": "f000110",
+   "language": "eng",
+   "lines": [
+    "there;"
+   ]
+  },
+  {
+   "begin": "31.240",
+   "children": [],
+   "end": "31.640",
+   "id": "f000111",
+   "language": "eng",
+   "lines": [
+    "and"
+   ]
+  },
+  {
+   "begin": "31.640",
+   "children": [],
+   "end": "31.800",
+   "id": "f000112",
+   "language": "eng",
+   "lines": [
+    "backward,"
+   ]
+  },
+  {
+   "begin": "31.800",
+   "children": [],
+   "end": "32.440",
+   "id": "f000113",
+   "language": "eng",
+   "lines": [
+    "but"
+   ]
+  },
+  {
+   "begin": "32.440",
+   "children": [],
+   "end": "32.600",
+   "id": "f000114",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "32.600",
+   "children": [],
+   "end": "32.960",
+   "id": "f000115",
+   "language": "eng",
+   "lines": [
+    "cannot"
+   ]
+  },
+  {
+   "begin": "32.960",
+   "children": [],
+   "end": "33.320",
+   "id": "f000116",
+   "language": "eng",
+   "lines": [
+    "perceive"
+   ]
+  },
+  {
+   "begin": "33.320",
+   "children": [],
+   "end": "33.640",
+   "id": "f000117",
+   "language": "eng",
+   "lines": [
+    "him:"
+   ]
+  },
+  {
+   "begin": "33.640",
+   "children": [],
+   "end": "33.680",
+   "id": "f000118",
+   "language": "eng",
+   "lines": [
+    "On"
+   ]
+  },
+  {
+   "begin": "33.680",
+   "children": [],
+   "end": "34.160",
+   "id": "f000119",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "34.160",
+   "children": [],
+   "end": "34.320",
+   "id": "f000120",
+   "language": "eng",
+   "lines": [
+    "left"
+   ]
+  },
+  {
+   "begin": "34.320",
+   "children": [],
+   "end": "35.160",
+   "id": "f000121",
+   "language": "eng",
+   "lines": [
+    "hand,"
+   ]
+  },
+  {
+   "begin": "35.160",
+   "children": [],
+   "end": "35.400",
+   "id": "f000122",
+   "language": "eng",
+   "lines": [
+    "where"
+   ]
+  },
+  {
+   "begin": "35.400",
+   "children": [],
+   "end": "35.480",
+   "id": "f000123",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "35.480",
+   "children": [],
+   "end": "35.720",
+   "id": "f000124",
+   "language": "eng",
+   "lines": [
+    "doth"
+   ]
+  },
+  {
+   "begin": "35.720",
+   "children": [],
+   "end": "36.080",
+   "id": "f000125",
+   "language": "eng",
+   "lines": [
+    "work,"
+   ]
+  },
+  {
+   "begin": "36.080",
+   "children": [],
+   "end": "36.080",
+   "id": "f000126",
+   "language": "eng",
+   "lines": [
+    "but"
+   ]
+  },
+  {
+   "begin": "36.080",
+   "children": [],
+   "end": "36.480",
+   "id": "f000127",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "36.480",
+   "children": [],
+   "end": "36.840",
+   "id": "f000128",
+   "language": "eng",
+   "lines": [
+    "cannot"
+   ]
+  },
+  {
+   "begin": "36.840",
+   "children": [],
+   "end": "37.160",
+   "id": "f000129",
+   "language": "eng",
+   "lines": [
+    "behold"
+   ]
+  },
+  {
+   "begin": "37.160",
+   "children": [],
+   "end": "37.440",
+   "id": "f000130",
+   "language": "eng",
+   "lines": [
+    "him:"
+   ]
+  },
+  {
+   "begin": "37.440",
+   "children": [],
+   "end": "37.840",
+   "id": "f000131",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "37.840",
+   "children": [],
+   "end": "38.120",
+   "id": "f000132",
+   "language": "eng",
+   "lines": [
+    "hideth"
+   ]
+  },
+  {
+   "begin": "38.120",
+   "children": [],
+   "end": "38.800",
+   "id": "f000133",
+   "language": "eng",
+   "lines": [
+    "himself"
+   ]
+  },
+  {
+   "begin": "38.800",
+   "children": [],
+   "end": "38.800",
+   "id": "f000134",
+   "language": "eng",
+   "lines": [
+    "on"
+   ]
+  },
+  {
+   "begin": "38.800",
+   "children": [],
+   "end": "38.920",
+   "id": "f000135",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "38.920",
+   "children": [],
+   "end": "39.040",
+   "id": "f000136",
+   "language": "eng",
+   "lines": [
+    "right"
+   ]
+  },
+  {
+   "begin": "39.040",
+   "children": [],
+   "end": "39.520",
+   "id": "f000137",
+   "language": "eng",
+   "lines": [
+    "hand,"
+   ]
+  },
+  {
+   "begin": "39.520",
+   "children": [],
+   "end": "39.800",
+   "id": "f000138",
+   "language": "eng",
+   "lines": [
+    "that"
+   ]
+  },
+  {
+   "begin": "39.800",
+   "children": [],
+   "end": "40.120",
+   "id": "f000139",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "40.120",
+   "children": [],
+   "end": "40.400",
+   "id": "f000140",
+   "language": "eng",
+   "lines": [
+    "cannot"
+   ]
+  },
+  {
+   "begin": "40.400",
+   "children": [],
+   "end": "40.720",
+   "id": "f000141",
+   "language": "eng",
+   "lines": [
+    "see"
+   ]
+  },
+  {
+   "begin": "40.720",
+   "children": [],
+   "end": "40.960",
+   "id": "f000142",
+   "language": "eng",
+   "lines": [
+    "him:"
+   ]
+  },
+  {
+   "begin": "40.960",
+   "children": [],
+   "end": "41.160",
+   "id": "f000143",
+   "language": "eng",
+   "lines": [
+    "But"
+   ]
+  },
+  {
+   "begin": "41.160",
+   "children": [],
+   "end": "41.560",
+   "id": "f000144",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "41.560",
+   "children": [],
+   "end": "42.000",
+   "id": "f000145",
+   "language": "eng",
+   "lines": [
+    "knoweth"
+   ]
+  },
+  {
+   "begin": "42.000",
+   "children": [],
+   "end": "42.240",
+   "id": "f000146",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "42.240",
+   "children": [],
+   "end": "42.480",
+   "id": "f000147",
+   "language": "eng",
+   "lines": [
+    "way"
+   ]
+  },
+  {
+   "begin": "42.480",
+   "children": [],
+   "end": "42.480",
+   "id": "f000148",
+   "language": "eng",
+   "lines": [
+    "that"
+   ]
+  },
+  {
+   "begin": "42.480",
+   "children": [],
+   "end": "42.720",
+   "id": "f000149",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "42.720",
+   "children": [],
+   "end": "42.840",
+   "id": "f000150",
+   "language": "eng",
+   "lines": [
+    "take:"
+   ]
+  },
+  {
+   "begin": "42.840",
+   "children": [],
+   "end": "43.400",
+   "id": "f000151",
+   "language": "eng",
+   "lines": [
+    "when"
+   ]
+  },
+  {
+   "begin": "43.400",
+   "children": [],
+   "end": "43.400",
+   "id": "f000152",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "43.400",
+   "children": [],
+   "end": "43.600",
+   "id": "f000153",
+   "language": "eng",
+   "lines": [
+    "hath"
+   ]
+  },
+  {
+   "begin": "43.600",
+   "children": [],
+   "end": "43.920",
+   "id": "f000154",
+   "language": "eng",
+   "lines": [
+    "tried"
+   ]
+  },
+  {
+   "begin": "43.920",
+   "children": [],
+   "end": "44.200",
+   "id": "f000155",
+   "language": "eng",
+   "lines": [
+    "me,"
+   ]
+  },
+  {
+   "begin": "44.200",
+   "children": [],
+   "end": "44.560",
+   "id": "f000156",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "44.560",
+   "children": [],
+   "end": "44.840",
+   "id": "f000157",
+   "language": "eng",
+   "lines": [
+    "shall"
+   ]
+  },
+  {
+   "begin": "44.840",
+   "children": [],
+   "end": "45.040",
+   "id": "f000158",
+   "language": "eng",
+   "lines": [
+    "come"
+   ]
+  },
+  {
+   "begin": "45.040",
+   "children": [],
+   "end": "45.440",
+   "id": "f000159",
+   "language": "eng",
+   "lines": [
+    "forth"
+   ]
+  },
+  {
+   "begin": "45.440",
+   "children": [],
+   "end": "45.600",
+   "id": "f000160",
+   "language": "eng",
+   "lines": [
+    "as"
+   ]
+  },
+  {
+   "begin": "45.600",
+   "children": [],
+   "end": "45.920",
+   "id": "f000161",
+   "language": "eng",
+   "lines": [
+    "gold."
+   ]
+  },
+  {
+   "begin": "45.920",
+   "children": [],
+   "end": "45.920",
+   "id": "f000162",
+   "language": "eng",
+   "lines": [
+    "My"
+   ]
+  },
+  {
+   "begin": "45.920",
+   "children": [],
+   "end": "46.000",
+   "id": "f000163",
+   "language": "eng",
+   "lines": [
+    "foot"
+   ]
+  },
+  {
+   "begin": "46.000",
+   "children": [],
+   "end": "46.760",
+   "id": "f000164",
+   "language": "eng",
+   "lines": [
+    "hath"
+   ]
+  },
+  {
+   "begin": "46.760",
+   "children": [],
+   "end": "47.080",
+   "id": "f000165",
+   "language": "eng",
+   "lines": [
+    "held"
+   ]
+  },
+  {
+   "begin": "47.080",
+   "children": [],
+   "end": "47.560",
+   "id": "f000166",
+   "language": "eng",
+   "lines": [
+    "his"
+   ]
+  },
+  {
+   "begin": "47.560",
+   "children": [],
+   "end": "47.840",
+   "id": "f000167",
+   "language": "eng",
+   "lines": [
+    "steps,"
+   ]
+  },
+  {
+   "begin": "47.840",
+   "children": [],
+   "end": "48.080",
+   "id": "f000168",
+   "language": "eng",
+   "lines": [
+    "his"
+   ]
+  },
+  {
+   "begin": "48.080",
+   "children": [],
+   "end": "48.200",
+   "id": "f000169",
+   "language": "eng",
+   "lines": [
+    "way"
+   ]
+  },
+  {
+   "begin": "48.200",
+   "children": [],
+   "end": "48.360",
+   "id": "f000170",
+   "language": "eng",
+   "lines": [
+    "have"
+   ]
+  },
+  {
+   "begin": "48.360",
+   "children": [],
+   "end": "48.480",
+   "id": "f000171",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "48.480",
+   "children": [],
+   "end": "48.920",
+   "id": "f000172",
+   "language": "eng",
+   "lines": [
+    "kept,"
+   ]
+  },
+  {
+   "begin": "48.920",
+   "children": [],
+   "end": "49.240",
+   "id": "f000173",
+   "language": "eng",
+   "lines": [
+    "and"
+   ]
+  },
+  {
+   "begin": "49.240",
+   "children": [],
+   "end": "49.480",
+   "id": "f000174",
+   "language": "eng",
+   "lines": [
+    "not"
+   ]
+  },
+  {
+   "begin": "49.480",
+   "children": [],
+   "end": "50.120",
+   "id": "f000175",
+   "language": "eng",
+   "lines": [
+    "declined."
+   ]
+  },
+  {
+   "begin": "50.120",
+   "children": [],
+   "end": "50.840",
+   "id": "f000176",
+   "language": "eng",
+   "lines": [
+    "Neither"
+   ]
+  },
+  {
+   "begin": "50.840",
+   "children": [],
+   "end": "51.080",
+   "id": "f000177",
+   "language": "eng",
+   "lines": [
+    "have"
+   ]
+  },
+  {
+   "begin": "51.080",
+   "children": [],
+   "end": "51.240",
+   "id": "f000178",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "51.240",
+   "children": [],
+   "end": "51.480",
+   "id": "f000179",
+   "language": "eng",
+   "lines": [
+    "gone"
+   ]
+  },
+  {
+   "begin": "51.480",
+   "children": [],
+   "end": "51.720",
+   "id": "f000180",
+   "language": "eng",
+   "lines": [
+    "back"
+   ]
+  },
+  {
+   "begin": "51.720",
+   "children": [],
+   "end": "51.720",
+   "id": "f000181",
+   "language": "eng",
+   "lines": [
+    "from"
+   ]
+  },
+  {
+   "begin": "51.720",
+   "children": [],
+   "end": "51.720",
+   "id": "f000182",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "51.720",
+   "children": [],
+   "end": "52.080",
+   "id": "f000183",
+   "language": "eng",
+   "lines": [
+    "commandment"
+   ]
+  },
+  {
+   "begin": "52.080",
+   "children": [],
+   "end": "52.320",
+   "id": "f000184",
+   "language": "eng",
+   "lines": [
+    "of"
+   ]
+  },
+  {
+   "begin": "52.320",
+   "children": [],
+   "end": "52.400",
+   "id": "f000185",
+   "language": "eng",
+   "lines": [
+    "his"
+   ]
+  },
+  {
+   "begin": "52.400",
+   "children": [],
+   "end": "52.800",
+   "id": "f000186",
+   "language": "eng",
+   "lines": [
+    "lips;"
+   ]
+  },
+  {
+   "begin": "52.800",
+   "children": [],
+   "end": "53.000",
+   "id": "f000187",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "53.000",
+   "children": [],
+   "end": "53.000",
+   "id": "f000188",
+   "language": "eng",
+   "lines": [
+    "have"
+   ]
+  },
+  {
+   "begin": "53.000",
+   "children": [],
+   "end": "53.400",
+   "id": "f000189",
+   "language": "eng",
+   "lines": [
+    "esteemed"
+   ]
+  },
+  {
+   "begin": "53.400",
+   "children": [],
+   "end": "53.640",
+   "id": "f000190",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "53.640",
+   "children": [],
+   "end": "54.400",
+   "id": "f000191",
+   "language": "eng",
+   "lines": [
+    "words"
+   ]
+  },
+  {
+   "begin": "54.400",
+   "children": [],
+   "end": "54.960",
+   "id": "f000192",
+   "language": "eng",
+   "lines": [
+    "of"
+   ]
+  },
+  {
+   "begin": "54.960",
+   "children": [],
+   "end": "55.200",
+   "id": "f000193",
+   "language": "eng",
+   "lines": [
+    "his"
+   ]
+  },
+  {
+   "begin": "55.200",
+   "children": [],
+   "end": "55.440",
+   "id": "f000194",
+   "language": "eng",
+   "lines": [
+    "mouth"
+   ]
+  },
+  {
+   "begin": "55.440",
+   "children": [],
+   "end": "55.680",
+   "id": "f000195",
+   "language": "eng",
+   "lines": [
+    "more"
+   ]
+  },
+  {
+   "begin": "55.680",
+   "children": [],
+   "end": "55.760",
+   "id": "f000196",
+   "language": "eng",
+   "lines": [
+    "than"
+   ]
+  },
+  {
+   "begin": "55.760",
+   "children": [],
+   "end": "56.000",
+   "id": "f000197",
+   "language": "eng",
+   "lines": [
+    "my"
+   ]
+  },
+  {
+   "begin": "56.000",
+   "children": [],
+   "end": "56.520",
+   "id": "f000198",
+   "language": "eng",
+   "lines": [
+    "necessary"
+   ]
+  },
+  {
+   "begin": "56.520",
+   "children": [],
+   "end": "56.880",
+   "id": "f000199",
+   "language": "eng",
+   "lines": [
+    "food."
+   ]
+  },
+  {
+   "begin": "56.880",
+   "children": [],
+   "end": "56.880",
+   "id": "f000200",
+   "language": "eng",
+   "lines": [
+    "But"
+   ]
+  },
+  {
+   "begin": "56.880",
+   "children": [],
+   "end": "56.880",
+   "id": "f000201",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "56.880",
+   "children": [],
+   "end": "56.880",
+   "id": "f000202",
+   "language": "eng",
+   "lines": [
+    "is"
+   ]
+  },
+  {
+   "begin": "56.880",
+   "children": [],
+   "end": "56.920",
+   "id": "f000203",
+   "language": "eng",
+   "lines": [
+    "in"
+   ]
+  },
+  {
+   "begin": "56.920",
+   "children": [],
+   "end": "56.960",
+   "id": "f000204",
+   "language": "eng",
+   "lines": [
+    "one"
+   ]
+  },
+  {
+   "begin": "56.960",
+   "children": [],
+   "end": "57.720",
+   "id": "f000205",
+   "language": "eng",
+   "lines": [
+    "mind,"
+   ]
+  },
+  {
+   "begin": "57.720",
+   "children": [],
+   "end": "58.440",
+   "id": "f000206",
+   "language": "eng",
+   "lines": [
+    "and"
+   ]
+  },
+  {
+   "begin": "58.440",
+   "children": [],
+   "end": "58.800",
+   "id": "f000207",
+   "language": "eng",
+   "lines": [
+    "who"
+   ]
+  },
+  {
+   "begin": "58.800",
+   "children": [],
+   "end": "59.000",
+   "id": "f000208",
+   "language": "eng",
+   "lines": [
+    "can"
+   ]
+  },
+  {
+   "begin": "59.000",
+   "children": [],
+   "end": "59.240",
+   "id": "f000209",
+   "language": "eng",
+   "lines": [
+    "turn"
+   ]
+  },
+  {
+   "begin": "59.240",
+   "children": [],
+   "end": "59.560",
+   "id": "f000210",
+   "language": "eng",
+   "lines": [
+    "him?"
+   ]
+  },
+  {
+   "begin": "59.560",
+   "children": [],
+   "end": "59.560",
+   "id": "f000211",
+   "language": "eng",
+   "lines": [
+    "and"
+   ]
+  },
+  {
+   "begin": "59.560",
+   "children": [],
+   "end": "59.560",
+   "id": "f000212",
+   "language": "eng",
+   "lines": [
+    "what"
+   ]
+  },
+  {
+   "begin": "59.560",
+   "children": [],
+   "end": "60.360",
+   "id": "f000213",
+   "language": "eng",
+   "lines": [
+    "his"
+   ]
+  },
+  {
+   "begin": "60.360",
+   "children": [],
+   "end": "60.720",
+   "id": "f000214",
+   "language": "eng",
+   "lines": [
+    "soul"
+   ]
+  },
+  {
+   "begin": "60.720",
+   "children": [],
+   "end": "61.360",
+   "id": "f000215",
+   "language": "eng",
+   "lines": [
+    "desireth,"
+   ]
+  },
+  {
+   "begin": "61.360",
+   "children": [],
+   "end": "61.880",
+   "id": "f000216",
+   "language": "eng",
+   "lines": [
+    "even"
+   ]
+  },
+  {
+   "begin": "61.880",
+   "children": [],
+   "end": "62.120",
+   "id": "f000217",
+   "language": "eng",
+   "lines": [
+    "that"
+   ]
+  },
+  {
+   "begin": "62.120",
+   "children": [],
+   "end": "62.200",
+   "id": "f000218",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "62.200",
+   "children": [],
+   "end": "62.640",
+   "id": "f000219",
+   "language": "eng",
+   "lines": [
+    "doeth."
+   ]
+  },
+  {
+   "begin": "62.640",
+   "children": [],
+   "end": "63.280",
+   "id": "f000220",
+   "language": "eng",
+   "lines": [
+    "For"
+   ]
+  },
+  {
+   "begin": "63.280",
+   "children": [],
+   "end": "63.280",
+   "id": "f000221",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "63.280",
+   "children": [],
+   "end": "63.760",
+   "id": "f000222",
+   "language": "eng",
+   "lines": [
+    "performeth"
+   ]
+  },
+  {
+   "begin": "63.760",
+   "children": [],
+   "end": "63.920",
+   "id": "f000223",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "63.920",
+   "children": [],
+   "end": "64.240",
+   "id": "f000224",
+   "language": "eng",
+   "lines": [
+    "thing"
+   ]
+  },
+  {
+   "begin": "64.240",
+   "children": [],
+   "end": "64.560",
+   "id": "f000225",
+   "language": "eng",
+   "lines": [
+    "that"
+   ]
+  },
+  {
+   "begin": "64.560",
+   "children": [],
+   "end": "64.560",
+   "id": "f000226",
+   "language": "eng",
+   "lines": [
+    "is"
+   ]
+  },
+  {
+   "begin": "64.560",
+   "children": [],
+   "end": "65.200",
+   "id": "f000227",
+   "language": "eng",
+   "lines": [
+    "appointed"
+   ]
+  },
+  {
+   "begin": "65.200",
+   "children": [],
+   "end": "65.400",
+   "id": "f000228",
+   "language": "eng",
+   "lines": [
+    "for"
+   ]
+  },
+  {
+   "begin": "65.400",
+   "children": [],
+   "end": "65.440",
+   "id": "f000229",
+   "language": "eng",
+   "lines": [
+    "me:"
+   ]
+  },
+  {
+   "begin": "65.440",
+   "children": [],
+   "end": "65.480",
+   "id": "f000230",
+   "language": "eng",
+   "lines": [
+    "and"
+   ]
+  },
+  {
+   "begin": "65.480",
+   "children": [],
+   "end": "66.120",
+   "id": "f000231",
+   "language": "eng",
+   "lines": [
+    "many"
+   ]
+  },
+  {
+   "begin": "66.120",
+   "children": [],
+   "end": "66.560",
+   "id": "f000232",
+   "language": "eng",
+   "lines": [
+    "such"
+   ]
+  },
+  {
+   "begin": "66.560",
+   "children": [],
+   "end": "66.800",
+   "id": "f000233",
+   "language": "eng",
+   "lines": [
+    "things"
+   ]
+  },
+  {
+   "begin": "66.800",
+   "children": [],
+   "end": "67.120",
+   "id": "f000234",
+   "language": "eng",
+   "lines": [
+    "are"
+   ]
+  },
+  {
+   "begin": "67.120",
+   "children": [],
+   "end": "67.400",
+   "id": "f000235",
+   "language": "eng",
+   "lines": [
+    "with"
+   ]
+  },
+  {
+   "begin": "67.400",
+   "children": [],
+   "end": "67.440",
+   "id": "f000236",
+   "language": "eng",
+   "lines": [
+    "him."
+   ]
+  },
+  {
+   "begin": "67.440",
+   "children": [],
+   "end": "68.240",
+   "id": "f000237",
+   "language": "eng",
+   "lines": [
+    "Therefore"
+   ]
+  },
+  {
+   "begin": "68.240",
+   "children": [],
+   "end": "68.240",
+   "id": "f000238",
+   "language": "eng",
+   "lines": [
+    "am"
+   ]
+  },
+  {
+   "begin": "68.240",
+   "children": [],
+   "end": "68.400",
+   "id": "f000239",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "68.400",
+   "children": [],
+   "end": "69.080",
+   "id": "f000240",
+   "language": "eng",
+   "lines": [
+    "troubled"
+   ]
+  },
+  {
+   "begin": "69.080",
+   "children": [],
+   "end": "69.080",
+   "id": "f000241",
+   "language": "eng",
+   "lines": [
+    "at"
+   ]
+  },
+  {
+   "begin": "69.080",
+   "children": [],
+   "end": "69.080",
+   "id": "f000242",
+   "language": "eng",
+   "lines": [
+    "his"
+   ]
+  },
+  {
+   "begin": "69.080",
+   "children": [],
+   "end": "69.600",
+   "id": "f000243",
+   "language": "eng",
+   "lines": [
+    "presence:"
+   ]
+  },
+  {
+   "begin": "69.600",
+   "children": [],
+   "end": "69.880",
+   "id": "f000244",
+   "language": "eng",
+   "lines": [
+    "when"
+   ]
+  },
+  {
+   "begin": "69.880",
+   "children": [],
+   "end": "70.200",
+   "id": "f000245",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "70.200",
+   "children": [],
+   "end": "70.760",
+   "id": "f000246",
+   "language": "eng",
+   "lines": [
+    "consider,"
+   ]
+  },
+  {
+   "begin": "70.760",
+   "children": [],
+   "end": "71.120",
+   "id": "f000247",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "71.120",
+   "children": [],
+   "end": "71.200",
+   "id": "f000248",
+   "language": "eng",
+   "lines": [
+    "am"
+   ]
+  },
+  {
+   "begin": "71.200",
+   "children": [],
+   "end": "71.760",
+   "id": "f000249",
+   "language": "eng",
+   "lines": [
+    "afraid"
+   ]
+  },
+  {
+   "begin": "71.760",
+   "children": [],
+   "end": "71.840",
+   "id": "f000250",
+   "language": "eng",
+   "lines": [
+    "of"
+   ]
+  },
+  {
+   "begin": "71.840",
+   "children": [],
+   "end": "71.880",
+   "id": "f000251",
+   "language": "eng",
+   "lines": [
+    "him."
+   ]
+  },
+  {
+   "begin": "71.880",
+   "children": [],
+   "end": "72.400",
+   "id": "f000252",
+   "language": "eng",
+   "lines": [
+    "For"
+   ]
+  },
+  {
+   "begin": "72.400",
+   "children": [],
+   "end": "72.400",
+   "id": "f000253",
+   "language": "eng",
+   "lines": [
+    "God"
+   ]
+  },
+  {
+   "begin": "72.400",
+   "children": [],
+   "end": "73.000",
+   "id": "f000254",
+   "language": "eng",
+   "lines": [
+    "maketh"
+   ]
+  },
+  {
+   "begin": "73.000",
+   "children": [],
+   "end": "73.320",
+   "id": "f000255",
+   "language": "eng",
+   "lines": [
+    "my"
+   ]
+  },
+  {
+   "begin": "73.320",
+   "children": [],
+   "end": "73.760",
+   "id": "f000256",
+   "language": "eng",
+   "lines": [
+    "heart"
+   ]
+  },
+  {
+   "begin": "73.760",
+   "children": [],
+   "end": "73.960",
+   "id": "f000257",
+   "language": "eng",
+   "lines": [
+    "soft,"
+   ]
+  },
+  {
+   "begin": "73.960",
+   "children": [],
+   "end": "74.240",
+   "id": "f000258",
+   "language": "eng",
+   "lines": [
+    "and"
+   ]
+  },
+  {
+   "begin": "74.240",
+   "children": [],
+   "end": "74.320",
+   "id": "f000259",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "74.320",
+   "children": [],
+   "end": "74.800",
+   "id": "f000260",
+   "language": "eng",
+   "lines": [
+    "Almighty"
+   ]
+  },
+  {
+   "begin": "74.800",
+   "children": [],
+   "end": "75.200",
+   "id": "f000261",
+   "language": "eng",
+   "lines": [
+    "troubleth"
+   ]
+  },
+  {
+   "begin": "75.200",
+   "children": [],
+   "end": "75.440",
+   "id": "f000262",
+   "language": "eng",
+   "lines": [
+    "me:"
+   ]
+  },
+  {
+   "begin": "75.440",
+   "children": [],
+   "end": "76.120",
+   "id": "f000263",
+   "language": "eng",
+   "lines": [
+    "Because"
+   ]
+  },
+  {
+   "begin": "76.120",
+   "children": [],
+   "end": "76.240",
+   "id": "f000264",
+   "language": "eng",
+   "lines": [
+    "I"
+   ]
+  },
+  {
+   "begin": "76.240",
+   "children": [],
+   "end": "76.440",
+   "id": "f000265",
+   "language": "eng",
+   "lines": [
+    "was"
+   ]
+  },
+  {
+   "begin": "76.440",
+   "children": [],
+   "end": "76.720",
+   "id": "f000266",
+   "language": "eng",
+   "lines": [
+    "not"
+   ]
+  },
+  {
+   "begin": "76.720",
+   "children": [],
+   "end": "77.200",
+   "id": "f000267",
+   "language": "eng",
+   "lines": [
+    "cut"
+   ]
+  },
+  {
+   "begin": "77.200",
+   "children": [],
+   "end": "77.200",
+   "id": "f000268",
+   "language": "eng",
+   "lines": [
+    "off"
+   ]
+  },
+  {
+   "begin": "77.200",
+   "children": [],
+   "end": "77.400",
+   "id": "f000269",
+   "language": "eng",
+   "lines": [
+    "before"
+   ]
+  },
+  {
+   "begin": "77.400",
+   "children": [],
+   "end": "77.760",
+   "id": "f000270",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "77.760",
+   "children": [],
+   "end": "78.080",
+   "id": "f000271",
+   "language": "eng",
+   "lines": [
+    "darkness,"
+   ]
+  },
+  {
+   "begin": "78.080",
+   "children": [],
+   "end": "78.720",
+   "id": "f000272",
+   "language": "eng",
+   "lines": [
+    "neither"
+   ]
+  },
+  {
+   "begin": "78.720",
+   "children": [],
+   "end": "78.800",
+   "id": "f000273",
+   "language": "eng",
+   "lines": [
+    "hath"
+   ]
+  },
+  {
+   "begin": "78.800",
+   "children": [],
+   "end": "78.920",
+   "id": "f000274",
+   "language": "eng",
+   "lines": [
+    "he"
+   ]
+  },
+  {
+   "begin": "78.920",
+   "children": [],
+   "end": "79.200",
+   "id": "f000275",
+   "language": "eng",
+   "lines": [
+    "covered"
+   ]
+  },
+  {
+   "begin": "79.200",
+   "children": [],
+   "end": "79.280",
+   "id": "f000276",
+   "language": "eng",
+   "lines": [
+    "the"
+   ]
+  },
+  {
+   "begin": "79.280",
+   "children": [],
+   "end": "79.800",
+   "id": "f000277",
+   "language": "eng",
+   "lines": [
+    "darkness"
+   ]
+  },
+  {
+   "begin": "79.800",
+   "children": [],
+   "end": "79.880",
+   "id": "f000278",
+   "language": "eng",
+   "lines": [
+    "from"
+   ]
+  },
+  {
+   "begin": "79.880",
+   "children": [],
+   "end": "80.000",
+   "id": "f000279",
+   "language": "eng",
+   "lines": [
+    "my"
+   ]
+  },
+  {
+   "begin": "80.000",
+   "children": [],
+   "end": "80.840",
+   "id": "f000280",
+   "language": "eng",
+   "lines": [
+    "face."
+   ]
+  }
+ ]
+}

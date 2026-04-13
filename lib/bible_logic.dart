@@ -1,5 +1,6 @@
 import 'bible_model.dart';
 import 'package:flutter/material.dart';
+import 'database_service.dart';
 
 enum BibleViewStyle { standard, superscript, mathematics, mathematics2, mathematicsUnconstraint }
 
@@ -113,9 +114,11 @@ class BibleLogic {
   }
 
   static BibleLocation? parseLocation(String loc) {
+    String clean = loc.trim();
+    if (clean.contains('_')) clean = clean.split('_').first;
     try {
       final regExp = RegExp(r'^(\d?[a-zA-Z]+)(\d+):(\d+)(?::(\d+))?(?:-(\d+))?$', caseSensitive: false);
-      final match = regExp.firstMatch(loc.trim().replaceAll(' ', ''));
+      final match = regExp.firstMatch(clean.replaceAll(' ', ''));
       if (match != null) {
         int start = match.group(4) != null ? int.parse(match.group(4)!) : 1;
         int end = match.group(5) != null ? int.parse(match.group(5)!) : (match.group(4) != null ? start : 0);
@@ -123,6 +126,12 @@ class BibleLogic {
       }
     } catch (_) {}
     return null;
+  }
+
+  static bool isLocationQuery(String q) {
+    final trimmed = q.trim().replaceAll(' ', '');
+    if (trimmed.isEmpty) return false;
+    return RegExp(r'^(\d?[a-zA-Z]+\d+:\d+([:,\-_\d]+)?)(,\d?[a-zA-Z]+\d+:\d+([:,\-_\d]+)?)*$').hasMatch(trimmed);
   }
 
   static bool _isVerbContext(List<BibleWord> words, int index, String word) {
@@ -187,7 +196,9 @@ class BibleLogic {
       }
     }
 
+    Set<int> processedIndices = {};
     for (int i = 0; i < verse.styledWords.length; i++) {
+      if (processedIndices.contains(i)) continue;
       final bw = verse.styledWords[i];
       final String rawText = bw.text.replaceAll('¶', '').trim();
       final String wordLower = rawText.toLowerCase().replaceAll(RegExp(r'[.,;:!?\(\)\[\]]'), '');
@@ -197,6 +208,7 @@ class BibleLogic {
       bool hasPunctuation = rawText.contains(RegExp(r'[.,;:!?]'));
       String punctuation = rawText.replaceAll(RegExp(r'[^.,;:!?]'), '');
       bool isStartOfVerse = i == 0;
+      bool isEndOfVerse = i == verse.styledWords.length - 1;
       bool isOf = wordLower == 'of';
       bool precededByPunctuation = i > 0 && verse.styledWords[i-1].text.contains(RegExp(r'[.,;:!?]'));
       
@@ -207,16 +219,16 @@ class BibleLogic {
       if (isTertiary) {
         shouldReplaceFunction = true;
       } else if (isSecondary) {
-        inhibitOf = isStartOfVerse || (i == verse.styledWords.length - 1);
+        inhibitOf = isStartOfVerse || isEndOfVerse;
         inhibitFunction = isStartOfVerse || (hasPunctuation && !isOf);
         bool isIsolated = !isFunctionWord(i - 1) && !isFunctionWord(i + 1);
-        bool isSecondInSeq = i > 0 && isFunctionWord(i - 1) && !isFunctionWord(i - 2);
+        bool isSecondInSeq = i > 0 && i < verse.styledWords.length && isFunctionWord(i - 1) && !isFunctionWord(i - 2);
         shouldReplaceFunction = isIsolated || isSecondInSeq || precededByPunctuation;
       } else {
-        inhibitOf = isStartOfVerse || precededByPunctuation || (i == verse.styledWords.length - 1);
+        inhibitOf = isStartOfVerse || precededByPunctuation || isEndOfVerse;
         inhibitFunction = isStartOfVerse || hasPunctuation || precededByPunctuation;
         bool isIsolated = !isFunctionWord(i - 1) && !isFunctionWord(i + 1);
-        bool isFirstInSeq = !isFunctionWord(i - 1) && isFunctionWord(i + 1);
+        bool isFirstInSeq = !isFunctionWord(i - 1) && i < verse.styledWords.length - 1 && i < verse.styledWords.length - 1 && isFunctionWord(i + 1);
         shouldReplaceFunction = isIsolated || isFirstInSeq;
       }
 
@@ -225,9 +237,14 @@ class BibleLogic {
 
       if (isOf && !inhibitOf) {
         currentIsOfBracket = true;
-        if (isTertiary && hasPunctuation) {
-          parts.add(MathPart('()', isRed: true, isParenthesis: true, isOfReplacement: true));
-          parts.add(MathPart(punctuation));
+        if (hasPunctuation || isEndOfVerse) {
+          if (isTertiary) {
+            parts.add(MathPart('()', isRed: true, isParenthesis: true, isOfReplacement: true));
+            if (punctuation.isNotEmpty) parts.add(MathPart(punctuation));
+          } else {
+            parts.add(MathPart('of'));
+            if (punctuation.isNotEmpty) parts.add(MathPart(punctuation));
+          }
         } else {
           parts.add(MathPart('(', isRed: true, isParenthesis: true, isOfReplacement: true));
           openOfCount = 1;
@@ -245,9 +262,8 @@ class BibleLogic {
         parts.add(MathPart(cleanWord, isItalic: bw.isItalic));
         if (punctuation.isNotEmpty) parts.add(MathPart(punctuation));
         
-        // NUCLEAR NP-CAPTURE: Close 'of' parenthesis after non-modifier words to prevent runaways.
         if (openOfCount > 0) {
-          if (!_wrappers.contains(wordLower) || hasPunctuation) {
+          if (!_wrappers.contains(wordLower) || hasPunctuation || isEndOfVerse) {
             closeParenthesis(parts, openOfCount);
             openOfCount = 0;
           }
@@ -294,5 +310,34 @@ class BibleLogic {
       } catch (_) {}
     }
     return sb.toString();
+  }
+
+  static String formatInverseRelation(String query, List<BibleMatch> results) {
+    final cleanQuery = query.trim();
+    if (isLocationQuery(cleanQuery)) {
+      if (results.isEmpty) return "$cleanQuery ↦ NULL";
+      // Join all phrases from the results to include every part of the list
+      final fullPhrase = results.map((m) => m.phrase).join(' ').trim();
+      return "$cleanQuery ↦ $fullPhrase($cleanQuery)";
+    }
+    final String joined = results.map((m) => m.location).join('; ');
+    return "$query ↦ { $joined } RecordCount: ${results.length}";
+  }
+
+  static List<TextSpan> highlightText(String text, String query, {TextStyle? normalStyle, TextStyle? highlightStyle}) {
+    if (query.isEmpty) return [TextSpan(text: text, style: normalStyle)];
+    List<TextSpan> spans = []; 
+    final lowerText = text.toLowerCase(); 
+    final lowerQuery = query.toLowerCase(); 
+    int start = 0; 
+    int indexOfMatch;
+    final hStyle = highlightStyle ?? const TextStyle(fontWeight: FontWeight.bold, backgroundColor: Colors.yellow, color: Colors.black);
+    while ((indexOfMatch = lowerText.indexOf(lowerQuery, start)) != -1) {
+      if (indexOfMatch > start) spans.add(TextSpan(text: text.substring(start, indexOfMatch), style: normalStyle));
+      spans.add(TextSpan(text: text.substring(indexOfMatch, indexOfMatch + query.length), style: hStyle));
+      start = indexOfMatch + query.length;
+    }
+    if (start < text.length) spans.add(TextSpan(text: text.substring(start), style: normalStyle));
+    return spans;
   }
 }

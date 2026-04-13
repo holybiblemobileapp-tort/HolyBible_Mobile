@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -137,7 +138,6 @@ class MainNavigation extends StatefulWidget {
   final Function(AudioQuality) onAudioQualityChanged;
 
   const MainNavigation({
-    super.key,
     required this.selectedTheme,
     required this.selectedFont,
     required this.isAudioEnabled,
@@ -172,7 +172,9 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   // Persistent Search State
   String? _cachedSearchQuery;
   List<BibleMatch>? _cachedSearchResults;
-  
+  final TextEditingController _homeFilterController = TextEditingController();
+  final ValueNotifier<String> _homeFilterNotifier = ValueNotifier("");
+
   final DatabaseService _db = DatabaseService();
   final AudioService _audioService = AudioService();
   final TextEditingController _bookFilterController = TextEditingController();
@@ -193,6 +195,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   void dispose() {
     _bibleTabController.dispose();
     _bookFilterController.dispose();
+    _homeFilterController.dispose();
     super.dispose();
   }
 
@@ -205,6 +208,19 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
     final daily = await _db.getDailyVerse();
     final cont = await _db.getContinuityMap();
     final par = await _db.getParenthesesMap();
+    
+    // Restore Search Cache
+    _cachedSearchQuery = prefs.getString('cachedSearchQuery');
+    final cachedJson = prefs.getString('cachedSearchResults');
+    if (cachedJson != null) {
+      try {
+        final List<dynamic> list = json.decode(cachedJson);
+        _cachedSearchResults = list.map((m) => BibleMatch.fromJson(m)).toList();
+      } catch (e) {
+        debugPrint("Error restoring search cache: $e");
+      }
+    }
+
     await Future.delayed(const Duration(milliseconds: 800));
     setState(() {
       _books = books;
@@ -220,6 +236,21 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('bibleStyle', style.index);
     setState(() => _currentStyle = style);
+  }
+
+  Future<void> _saveSearchCache(String? query, List<BibleMatch>? results) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (query == null || results == null) {
+      await prefs.remove('cachedSearchQuery');
+      await prefs.remove('cachedSearchResults');
+    } else {
+      await prefs.setString('cachedSearchQuery', query);
+      await prefs.setString('cachedSearchResults', json.encode(results.map((m) => m.toJson()).toList()));
+    }
+    setState(() {
+      _cachedSearchQuery = query;
+      _cachedSearchResults = results;
+    });
   }
 
   Future<void> _onBookSelected(String book) async {
@@ -295,10 +326,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
         _db, 
         initialQuery: _cachedSearchQuery,
         initialResults: _cachedSearchResults,
-        onCacheUpdate: (q, results) {
-          _cachedSearchQuery = q;
-          _cachedSearchResults = results;
-        }
+        onCacheUpdate: (q, results) => _saveSearchCache(q, results)
       )
     );
     if (result != null) {
@@ -335,17 +363,27 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
           _buildSettingsTab(),
         ],
       ),
-      bottomNavigationBar: NavigationBar(selectedIndex: _selectedIndex, onDestinationSelected: (i) => setState(() => _selectedIndex = i), destinations: const [NavigationDestination(icon: Icon(Icons.home), label: 'Home'), NavigationDestination(icon: Icon(Icons.menu_book), label: 'Bible'), NavigationDestination(icon: Icon(Icons.science), label: 'Study Hub'), NavigationDestination(icon: Icon(Icons.settings), label: 'Settings')]),
+      bottomNavigationBar: NavigationBar(selectedIndex: _selectedIndex, onDestinationSelected: (i) => setState(() => _selectedIndex = i), destinations: const [NavigationDestination(icon: Icon(Icons.home), label: 'Home'), NavigationDestination(icon: Icon(Icons.menu_book), label: 'Bible'), NavigationDestination(icon: Icon(Icons.science), label: 'Study Hub'), NavigationDestination(icon: Icon(Icons.science_outlined), label: 'Study Notes'), NavigationDestination(icon: Icon(Icons.settings), label: 'Settings')]),
     );
   }
 
   Widget _buildBibleNavigator() {
-    return Column(children: [TabBar(controller: _bibleTabController, isScrollable: true, labelColor: Colors.brown, unselectedLabelColor: Colors.grey, tabs: [
-      Tooltip(message: "HEIGHT", child: Tab(text: "BOOK${(_selectedBook != null) ? "\n($_selectedBook)" : ""}")),
-      Tooltip(message: "DEPTH", child: Tab(text: "CHAPTER${(_selectedChapter != null) ? "\n($_selectedChapter)" : ""}")),
-      Tooltip(message: "LENGTH", child: Tab(text: "VERSE${(_selectedVerse != null) ? "\n($_selectedVerse)" : ""}")),
-      const Tooltip(message: "BREADTH", child: Tab(text: "READ")),
-    ]), Expanded(child: TabBarView(controller: _bibleTabController, children: [ _buildBookTab(), _buildChapterTab(), _buildVerseGridTab(), _buildVerseTab() ]))]);
+    return Column(children: [
+      TabBar(
+        controller: _bibleTabController, 
+        isScrollable: false, 
+        labelColor: Colors.brown, 
+        unselectedLabelColor: Colors.grey, 
+        labelPadding: EdgeInsets.zero,
+        tabs: const [
+          Tooltip(message: "HEIGHT", child: Tab(text: "BOOK")),
+          Tooltip(message: "DEPTH", child: Tab(text: "CHAPTER")),
+          Tooltip(message: "LENGTH", child: Tab(text: "VERSE")),
+          Tooltip(message: "BREADTH", child: Tab(text: "READ")),
+        ]
+      ), 
+      Expanded(child: TabBarView(controller: _bibleTabController, children: [ _buildBookTab(), _buildChapterTab(), _buildVerseGridTab(), _buildVerseTab() ]))
+    ]);
   }
 
   Widget _buildBookTab() { return Column(children: [Padding(padding: const EdgeInsets.all(8.0), child: TextField(controller: _bookFilterController, decoration: const InputDecoration(hintText: 'Filter Books...', prefixIcon: Icon(Icons.filter_list), border: OutlineInputBorder()), onChanged: (v) => setState(() {}))), Expanded(child: ListView.builder(itemCount: _books.length, itemBuilder: (context, index) { if (_bookFilterController.text.isNotEmpty && !_books[index].toLowerCase().contains(_bookFilterController.text.toLowerCase())) return const SizedBox.shrink(); return ListTile(title: Text(_books[index]), selected: _selectedBook == _books[index], onTap: () => _onBookSelected(_books[index])); }))]); }
@@ -376,9 +414,19 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
 
   Widget _buildWelcomePage(BibleVerse v) {
     return SingleChildScrollView(padding: const EdgeInsets.all(16.0), child: Column(children: [
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Image.asset('assets/IGoToTheFather1B.PNG', height: 80), const SizedBox(width: 15), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Daily Bread', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), IconButton(icon: const Icon(Icons.edit, size: 20, color: Colors.brown), onPressed: () async { final r = await showDialog<Map<String, dynamic>>(context: context, builder: (c) => const VerseSelectorDialog()); if (r != null) { _dailyVerse = null; _jumpToLocation("${r['book']} ${r['chapter']}:${r['verse']}"); setState(() => _selectedIndex = 0); } }, tooltip: "Change Verse")]), Text('${v.bookAbbreviation}${v.chapter}:${v.verse}:1-${v.wordCount}', style: const TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500))]))]),
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Image.asset('assets/IGoToTheFather1B.PNG', height: 80), const SizedBox(width: 15), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Daily Bread', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), IconButton(icon: const Icon(Icons.edit, size: 20, color: Colors.brown), onPressed: () async { 
+        final r = await showDialog<Map<String, dynamic>>(context: context, builder: (c) => const VerseSelectorDialog()); 
+        if (r != null) { 
+          final specificVerse = await _db.getSpecificVerse(r['book'], r['chapter'], r['verse']);
+          if (specificVerse != null) {
+            setState(() => _dailyVerse = specificVerse);
+          }
+        } 
+      }, tooltip: "Change Verse")]), Text('${v.bookAbbreviation}${v.chapter}:${v.verse}:1-${v.wordCount}', style: const TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500))]))]),
       const SizedBox(height: 24),
-      const Text("COMPARE ALL 5 VERSIONS", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2, color: Colors.brown)),
+      if (_cachedSearchResults != null) _buildHomeSearchResultsSection(),
+      const SizedBox(height: 24),
+      const Text("how readest thou?", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2, color: Colors.brown)),
       const SizedBox(height: 16),
       InkWell(onTap: () => _jumpToLocation("${v.bookAbbreviation}${v.chapter}:${v.verse}"), child: Column(children: [
         _buildComparisonRow(BibleLogic.getReadingLabel(BibleViewStyle.standard), v, _continuityMap, _parenthesesMap, BibleViewStyle.standard),
@@ -388,6 +436,75 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
         _buildComparisonRow(BibleLogic.getReadingLabel(BibleViewStyle.mathematicsUnconstraint), v, _continuityMap, _parenthesesMap, BibleViewStyle.mathematicsUnconstraint),
       ])),
     ]));
+  }
+
+  Widget _buildHomeSearchResultsSection() {
+    if (_cachedSearchResults == null || _cachedSearchResults!.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ValueListenableBuilder<String>(
+          valueListenable: _homeFilterNotifier,
+          builder: (context, filter, _) {
+            final filtered = _cachedSearchResults!.where((m) => 
+              m.phrase.toLowerCase().contains(filter.toLowerCase()) || 
+              m.location.toLowerCase().contains(filter.toLowerCase())
+            ).toList();
+            
+            final summary = BibleLogic.formatInverseRelation(_cachedSearchQuery ?? "", filtered);
+
+            return Column(
+              children: [
+                Container(
+                  width: double.maxFinite, 
+                  padding: const EdgeInsets.all(12), 
+                  margin: const EdgeInsets.only(top: 8),
+                  decoration: BoxDecoration(color: Colors.brown[50], borderRadius: BorderRadius.circular(4)),
+                  child: Column(
+                    children: [
+                      Row(children: [
+                        Expanded(child: SelectableText(summary, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.brown))),
+                        IconButton(icon: const Icon(Icons.copy_all, size: 20), onPressed: () {
+                          Clipboard.setData(ClipboardData(text: summary));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Inverse Relation copied"), duration: Duration(seconds: 1)));
+                        }),
+                        IconButton(icon: const Icon(Icons.clear), onPressed: () => _saveSearchCache(null, null)),
+                      ]),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _homeFilterController,
+                        decoration: const InputDecoration(
+                          hintText: "Filter output from Inverse Relation...",
+                          isDense: true,
+                          prefixIcon: Icon(Icons.filter_list, size: 16),
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        ),
+                        style: const TextStyle(fontSize: 12),
+                        onChanged: (v) => _homeFilterNotifier.value = v,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 300, 
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final m = filtered[index];
+                      return SearchResultTile(m: m, onJump: (loc, highlight) => _jumpToLocation(loc, highlight: highlight));
+                    },
+                  ),
+                ),
+              ],
+            );
+          }
+        ),
+      ],
+    );
   }
 
   Widget _buildComparisonRow(String title, BibleVerse v, Map<String, String> cont, Map<String, String> par, BibleViewStyle style) {
@@ -439,22 +556,82 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   }
 }
 
+class SearchResultTile extends StatelessWidget {
+  final BibleMatch m;
+  final Function(String, String) onJump;
+  const SearchResultTile({super.key, required this.m, required this.onJump});
+
+  @override
+  Widget build(BuildContext context) {
+    final List<BibleVerse> verses = [m.verse, ...m.extraVerses];
+    final String fullCopy = "${m.phrase}(${m.location})";
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => onJump(m.location, m.phrase),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: verses.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final v = entry.value;
+                      final String highlightPart = (m.phraseSegments.length > idx) ? m.phraseSegments[idx] : m.phrase;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            RichText(text: TextSpan(style: const TextStyle(color: Colors.black, fontSize: 13), children: BibleLogic.highlightText(v.text, highlightPart))),
+                            Text("${v.bookAbbreviation}${v.chapter}:${v.verse}:1-${v.wordCount}", style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 10)),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.content_copy, size: 18),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: fullCopy));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Copied: $fullCopy"), duration: const Duration(seconds: 1)));
+                },
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+      ],
+    );
+  }
+}
+
 class BibleSearchDelegate extends SearchDelegate<BibleMatch?> {
   final DatabaseService db;
   final String? initialQuery;
   final List<BibleMatch>? initialResults;
   final Function(String?, List<BibleMatch>?) onCacheUpdate;
+  
+  final TextEditingController _localFilterController = TextEditingController();
+  final ValueNotifier<String> _filterNotifier = ValueNotifier("");
 
   BibleSearchDelegate(this.db, {this.initialQuery, this.initialResults, required this.onCacheUpdate}) {
     if (initialQuery != null) query = initialQuery!;
   }
 
   @override String get searchFieldLabel => "Enter Phrase or Location";
-  @override List<Widget>? buildActions(BuildContext context) => [IconButton(icon: const Icon(Icons.clear), onPressed: () { query = ''; onCacheUpdate(null, null); })];
+  @override List<Widget>? buildActions(BuildContext context) => [
+    if (query.isNotEmpty) IconButton(icon: const Icon(Icons.clear), onPressed: () { query = ''; onCacheUpdate(null, null); }),
+  ];
   @override Widget? buildLeading(BuildContext context) => IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
   
   @override Widget buildResults(BuildContext context) {
-    if (query == initialQuery && initialResults != null) return _buildResultList(context, initialResults!);
     return FutureBuilder<List<BibleMatch>>(
       future: db.search(query),
       builder: (context, snapshot) {
@@ -467,28 +644,73 @@ class BibleSearchDelegate extends SearchDelegate<BibleMatch?> {
   }
 
   Widget _buildResultList(BuildContext context, List<BibleMatch> results) {
-    final summary = query.contains(':') ? "$query ↦" : "$query ↦ {${results.length} found}";
     return Column(children: [
-      Container(width: double.maxFinite, padding: const EdgeInsets.all(12), color: Colors.brown[50], child: Row(children: [Expanded(child: Text(summary, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.brown))), IconButton(icon: const Icon(Icons.copy_all, size: 20), onPressed: () { Clipboard.setData(ClipboardData(text: summary)); })])),
-      Expanded(child: ListView.builder(itemCount: results.length, itemBuilder: (context, index) {
-        final m = results[index];
-        return ListTile(title: RichText(text: TextSpan(style: const TextStyle(color: Colors.black, fontSize: 14), children: _highlightVerseText(m.verse.text, m.phrase))), subtitle: Text(m.location, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)), onTap: () => close(context, m));
-      }))
+      ValueListenableBuilder<String>(
+        valueListenable: _filterNotifier,
+        builder: (context, filter, _) {
+          final filtered = results.where((m) => 
+            m.phrase.toLowerCase().contains(filter.toLowerCase()) || 
+            m.location.toLowerCase().contains(filter.toLowerCase())
+          ).toList();
+          final summary = BibleLogic.formatInverseRelation(query, filtered);
+
+          return Container(
+            width: double.maxFinite, 
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), 
+            color: Colors.brown[50], 
+            child: Column(
+              children: [
+                Row(children: [
+                  Expanded(child: SelectableText(summary, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.brown))), 
+                  IconButton(icon: const Icon(Icons.copy_all, size: 20), onPressed: () { 
+                    Clipboard.setData(ClipboardData(text: summary)); 
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Inverse Relation copied"), duration: Duration(seconds: 1)));
+                  })
+                ]),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _localFilterController,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    hintText: 'Filter results...',
+                    prefixIcon: Icon(Icons.filter_list, size: 16),
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  style: const TextStyle(fontSize: 12),
+                  onChanged: (v) => _filterNotifier.value = v,
+                ),
+              ],
+            )
+          );
+        }
+      ),
+      Expanded(
+        child: ValueListenableBuilder<String>(
+          valueListenable: _filterNotifier,
+          builder: (context, filter, _) {
+            final filteredResults = results.where((m) => 
+              m.phrase.toLowerCase().contains(filter.toLowerCase()) || 
+              m.location.toLowerCase().contains(filter.toLowerCase())
+            ).toList();
+
+            return ListView.builder(
+              itemCount: filteredResults.length, 
+              itemBuilder: (context, index) {
+                final m = filteredResults[index];
+                return SearchResultTile(m: m, onJump: (loc, highlight) => close(context, m));
+              }
+            );
+          }
+        )
+      )
     ]);
   }
 
-  List<TextSpan> _highlightVerseText(String verseText, String query) {
-    if (query.isEmpty) return [TextSpan(text: verseText)];
-    List<TextSpan> spans = []; final lowerVerse = verseText.toLowerCase(); final lowerQuery = query.toLowerCase(); int start = 0; int indexOfMatch;
-    while ((indexOfMatch = lowerVerse.indexOf(lowerQuery, start)) != -1) {
-      if (indexOfMatch > start) spans.add(TextSpan(text: verseText.substring(start, indexOfMatch)));
-      spans.add(TextSpan(text: verseText.substring(indexOfMatch, indexOfMatch + query.length), style: const TextStyle(fontWeight: FontWeight.bold, backgroundColor: Colors.yellow)));
-      start = indexOfMatch + query.length;
-    }
-    if (start < verseText.length) spans.add(TextSpan(text: verseText.substring(start)));
-    return spans;
+  @override Widget buildSuggestions(BuildContext context) { 
+    if (query.length < 2) return const Center(child: Text("Search Phrases...")); 
+    return buildResults(context); 
   }
-  @override Widget buildSuggestions(BuildContext context) { if (query.length < 2) return const Center(child: Text("Search Phrases...")); return buildResults(context); }
 }
 
 class VerseSelectorDialog extends StatefulWidget {
@@ -501,11 +723,11 @@ class _VerseSelectorDialogState extends State<VerseSelectorDialog> {
   @override void initState() { super.initState(); _loadData(); }
   Future<void> _loadData() async {
     final books = await _db.getBooks(); final chapters = await _db.getChapters(_selectedBook); final verses = await _db.getVerseNumbers(_selectedBook, _selectedChapter);
-    setState(() { _books = books; _chapters = chapters; _verses = verses; });
+    setState(() { _books = books; _chapters = chapters; _selectedChapter = 1; _verses = verses; _selectedVerse = 1; });
   }
   @override Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Jump to Verse'),
+      title: const Text('Change Verse'),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         DropdownButton<String>(value: _selectedBook, isExpanded: true, items: _books.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(), onChanged: (b) async { final chapters = await _db.getChapters(b!); setState(() { _selectedBook = b; _chapters = chapters; _selectedChapter = 1; }); final verses = await _db.getVerseNumbers(b, 1); setState(() { _verses = verses; _selectedVerse = 1; }); }),
         Row(children: [
@@ -514,7 +736,7 @@ class _VerseSelectorDialogState extends State<VerseSelectorDialog> {
           Expanded(child: DropdownButton<int>(value: _selectedVerse, isExpanded: true, items: _verses.map((v) => DropdownMenuItem(value: v, child: Text('V $v'))).toList(), onChanged: (v) => setState(() => _selectedVerse = v!))),
         ]),
       ]),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), ElevatedButton(onPressed: () => Navigator.pop(context, {'book': _selectedBook, 'chapter': _selectedChapter, 'verse': _selectedVerse}), child: const Text('Jump'))],
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), ElevatedButton(onPressed: () => Navigator.pop(context, {'book': _selectedBook, 'chapter': _selectedChapter, 'verse': _selectedVerse}), child: const Text('Compare'))],
     );
   }
 }
