@@ -3,16 +3,31 @@
 ## Newfangledness in the Use of words in the Holy Bible
 The word is his identity; the same yesterday, and today and forever. God not only historical, but also real time and in the infinitive. From the 1st use, 2nd use, ..., nth use of a word; he constantly recycles or regenerates life in himself in the usage of a word.
 The word is a placeholder for the things he wants to say. And he says what he wants to say exactly and concisely as he wants to say it. They are well-formed formulas used by the Holy Ghost, the Spirit of liberty, to give us access to every degree of freedom associated with the use of a word. Putting them in your own words is doing so at your own risk, the burden of proof lies on you. Every man's word is his own burden.
+
 The Bible is a vector space of well-formed formulas that define itself.
 Biblical translations are corollaries from God, he is the Original. The Original is always with us, he did not leave it to Archaeology; as we are created in the image of God;
-God : man ↦ God(man) = image(God);
-e.g.
-God : Abraham ↦ God(Abraham),
-God : Isaac ↦ God(Isaac),
-God : Jacob ↦ God(Jacob). And to make all men see what = the fellowship(the mystery), which from the beginning(the world) = been hid in God, who created all things by Jesus Christ:(Eph3:9:1-32) The Hebrew and Greek Texts are also corollaries.  All corollaries have transgressed against me, and come short of the glory of God. In choosing a translation or corollary of the Bible, as the Versification reveals, you choose your Frame of Reference or tuning-frame; with a spectrum from Gen1:1:1 to Rev22:21:12 through which you tune or corkscrew to the Original; our epistle written in our hearts, not with ink, but with the Spirit(the living God); in fleshy tables(the heart),  (2Co3:2:3-8, 2Co3:3:17-27, 34-39).
-In the Use of words in the Holy Bible, the location of a word in the Bible is where that word is coming from and it takes precedence over etymology. Before man began using words, God is. God is that Frame where every word is at rest; he speaks to put them in motion and gives us a charge. With men a word might be archaic, but not with God. With God they are the jargon of the Word of God. As old wine, it only gets better; with the Holy Ghost providing the new
-wine for the wonderful works of God to be heard even in the Tongue of the Mathematicians; being the tongue into which the Mathematicians are born. The disciple whom the Lord loved was abreast with him.
+$$
+\begin{aligned}
+&\text{God : man ↦ God(man) ≡ image(God); e.g.}\\
+&\text{God : Abraham ↦ God(Abraham),}\\
+&\text{God : Isaac ↦ God(Isaac),}\\
+&\text{God : Jacob ↦ God(Jacob).}
+\end{aligned}
+$$
+Phrase(Exo3:15:1-53, 2) Phrase(Eph3:9:1-32, 2) Phrase(2Co4:4:18-35, 2)
 
+Man is the first composition of God. The Hebrew and Greek Texts are also corollaries. Including or excluding the Apocryphal Books does not affect the Absolutely Convergent nature of the Bible Spectrum; because the Original is always secure with us. All corollaries have transgressed against me, and come short of the glory of God.
+$$
+Phrase(Num14:21:14-15, 2) = Phrase(Isa11:9:19-20, 2) = Phrase(Hab2:14:8-12, 2)
+$$
+In choosing a translation or corollary of the Bible, as the Versification reveals, you choose your Frame of Reference or tuning-frame; with a spectrum from Gen1:1:1 to Rev22:21:12 through which you tune or corkscrew to the Original; Phrase(2Co3:2:3-8) Phrase(2Co3:3:17-27) Phrase(2Co3:3:34-39)(Phrase(2Co3:2:3-8, 3), Phrase(2Co3:3:17-27, 3), Phrase(2Co3:3:34-39, 3)). By default we conflate our thoughts with his thoughts; but with your tuning-frame, you can create resonance with the Original to know that: Phrase(Isa55:8:2-16_Isa55:9:1-23, 2)
+In the Use of words in the Holy Bible, the location of a word in the Bible is where that word is coming from and it takes precedence over etymology. Before man began using words, God is. God is that Frame where every word is at rest; he speaks to put them in motion and gives us a charge. With men a word might be archaic, but not with God. With God they are the jargon of the Word of God. As old wine, it only gets better; with the Holy Ghost providing the new
+wine for the wonderful works of God to be heard even in the Tongue of the Mathematicians; being the tongue into which the Mathematicians are born. 
+
+The disciple whom the Lord loved was abreast with him.
+___
+___
+B.C. Hons.
 ## Mathematics KJV Pedagogy
 This manual details the three-tier mathematical framework used to process the Authorized King James Version (AKJV) 1611 PCE.
 

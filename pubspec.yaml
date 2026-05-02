@@ -61,4 +61,8 @@ flutter:
     - assets/IGoToTheFather.svg
     - assets/YOUR_STRONG_REASONS.md
     - assets/sync/
-    - assets/audio/
+    - assets/fonts/
+  
+  # The explicit fonts section was removed to prevent build errors.
+  # Since you are using google_fonts and planning a dynamic download system,
+  # these .ttf files don't need to be bundled if they aren't physically present.

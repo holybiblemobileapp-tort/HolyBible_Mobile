@@ -34,9 +34,49 @@ class BibleLogic {
   
   static final RegExp _terminalPunct = RegExp(r'[.,!?;:¶]');
 
+  static const List<Color> argumentColors = [
+    Colors.black,
+    Colors.red,
+    Colors.blue,
+    const Color(0xFF2E7D32), // Green
+    Colors.orange,
+    Colors.purple,
+    Colors.brown,
+    Colors.pink,
+    Colors.teal,
+    const Color(0xFF808000), // Olive
+    const Color(0xFFFF00FF), // Magenta
+  ];
+
+  static Color getArgumentColor(int index, bool isDarkMode) {
+    if (index == 0) return isDarkMode ? Colors.white : Colors.black;
+    return argumentColors[index % argumentColors.length];
+  }
+
+  static String getLatexColor(int index) {
+    switch (index) {
+      case 1: return "red";
+      case 2: return "blue";
+      case 3: return "green";
+      case 4: return "orange";
+      case 5: return "purple";
+      case 6: return "brown";
+      case 7: return "pink";
+      case 8: return "teal";
+      case 9: return "olive";
+      case 10: return "magenta";
+      default: return "";
+    }
+  }
+
   static const Set<String> _wrappers = {
     'a', 'an', 'the', 'all', 'his', 'her', 'my', 'your', 'our', 'their', 'its', 'thy', 'y', 
-    'most', 'those', 'these', 'this', 'that', 'mine', 'thine'
+    'most', 'those', 'these', 'this', 'that', 'mine', 'thine',
+    'low', 'high', 'strong', 'good', 'great', 'little', 'much', 'many',
+    'corruptible', 'incorruptible', 'living', 'any', 'every', 'evil', 'sudden', 'wicked', 'own', 'and',
+    'strange', 'whorish', 'excellent', 'witty', 'righteous', 'faithful', 'froward', 'perverse', 'understanding',
+    'burnt', 'shittim', 'brass', 'silver', 'fine', 'fifty', 'fifteen', 'one', 'side', 'court', 'gate', 'cubits', 'testimony', 'offering', 'it',
+    'old', 'testament', 'holy', 'ghost', 'mount', 'seir', 'time', 'only', 'begotten', 'jesus', 'christ'
   };
 
   static const Map<String, int> _bookOrderMap = {
@@ -46,7 +86,7 @@ class BibleLogic {
   static int getBookOrder(String location) {
     final loc = parseLocation(location);
     if (loc == null) return 999;
-    String abbr = loc.bookAbbr;
+    String abbr = loc.bookAbbr; 
     if (abbr == 'Phi' && loc.chapter == 0) return 57;
     if (abbr == 'Jud' && loc.chapter == 0) return 65;
     return _bookOrderMap[abbr] ?? 999;
@@ -175,6 +215,7 @@ class BibleLogic {
     }
 
     void closeParenthesis(List<MathPart> targetParts, int count) {
+      if (count <= 0) return;
       if (targetParts.isEmpty) {
         targetParts.add(MathPart(')' * count, isRed: true, isParenthesis: true, isOfReplacement: true));
         return;
@@ -196,9 +237,7 @@ class BibleLogic {
       }
     }
 
-    Set<int> processedIndices = {};
     for (int i = 0; i < verse.styledWords.length; i++) {
-      if (processedIndices.contains(i)) continue;
       final bw = verse.styledWords[i];
       final String rawText = bw.text.replaceAll('¶', '').trim();
       final String wordLower = rawText.toLowerCase().replaceAll(RegExp(r'[.,;:!?\(\)\[\]]'), '');
@@ -228,7 +267,7 @@ class BibleLogic {
         inhibitOf = isStartOfVerse || precededByPunctuation || isEndOfVerse;
         inhibitFunction = isStartOfVerse || hasPunctuation || precededByPunctuation;
         bool isIsolated = !isFunctionWord(i - 1) && !isFunctionWord(i + 1);
-        bool isFirstInSeq = !isFunctionWord(i - 1) && i < verse.styledWords.length - 1 && i < verse.styledWords.length - 1 && isFunctionWord(i + 1);
+        bool isFirstInSeq = !isFunctionWord(i - 1) && i < verse.styledWords.length - 1 && isFunctionWord(i + 1);
         shouldReplaceFunction = isIsolated || isFirstInSeq;
       }
 
@@ -247,13 +286,21 @@ class BibleLogic {
           }
         } else {
           parts.add(MathPart('(', isRed: true, isParenthesis: true, isOfReplacement: true));
-          openOfCount = 1;
+          openOfCount++; 
         }
       } else if (symbol != null && isVerb && !inhibitFunction && shouldReplaceFunction) {
         if (openOfCount > 0) {
-          if (result.isNotEmpty) { closeParenthesis(result.last.parts, openOfCount); }
-          else { parts.insert(0, MathPart(')' * openOfCount, isRed: true, isParenthesis: true, isOfReplacement: true)); }
-          openOfCount = 0;
+          String nextWordText = i < verse.styledWords.length - 1 ? verse.styledWords[i+1].text.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '') : '';
+          bool nextIsOf = nextWordText == 'of';
+          bool nextIsAnd = nextWordText == 'and';
+          if (!nextIsOf && !nextIsAnd) {
+             if (result.isNotEmpty) {
+               closeParenthesis(result.last.parts, openOfCount);
+             } else {
+               parts.insert(0, MathPart(')' * openOfCount, isRed: true, isParenthesis: true, isOfReplacement: true));
+             }
+             openOfCount = 0;
+          }
         }
         parts.add(MathPart(symbol, isRed: true));
         if (punctuation.isNotEmpty) parts.add(MathPart(punctuation));
@@ -263,15 +310,23 @@ class BibleLogic {
         if (punctuation.isNotEmpty) parts.add(MathPart(punctuation));
         
         if (openOfCount > 0) {
-          if (!_wrappers.contains(wordLower) || hasPunctuation || isEndOfVerse) {
-            closeParenthesis(parts, openOfCount);
+          String nextWordText = i < verse.styledWords.length - 1 ? verse.styledWords[i+1].text.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '') : '';
+          bool nextIsOf = nextWordText == 'of';
+          bool nextIsAnd = nextWordText == 'and';
+          bool isPossessive = wordLower.endsWith("'s") || wordLower.endsWith("’s");
+          
+          bool shouldClose = (!(_wrappers.contains(wordLower) || nextIsOf || nextIsAnd || isPossessive)) || isEndOfVerse;
+          if (hasPunctuation) shouldClose = true;
+
+          if (shouldClose) {
+            closeParenthesis(parts, openOfCount); 
             openOfCount = 0;
           }
         }
       }
 
       bool isStrongPunct = rawText.contains(RegExp(r'[.!?;:]'));
-      if ((isStrongPunct || (hasPunctuation && isSecondary)) && openOfCount > 0) {
+      if (isStrongPunct && openOfCount > 0) {
         closeParenthesis(parts, openOfCount);
         openOfCount = 0;
       }
@@ -316,7 +371,6 @@ class BibleLogic {
     final cleanQuery = query.trim();
     if (isLocationQuery(cleanQuery)) {
       if (results.isEmpty) return "$cleanQuery ↦ NULL";
-      // Join all phrases from the results to include every part of the list
       final fullPhrase = results.map((m) => m.phrase).join(' ').trim();
       return "$cleanQuery ↦ $fullPhrase($cleanQuery)";
     }

@@ -14,6 +14,7 @@ class DownloadService {
   // Note: For LFS files, we use the /raw/ path which redirects to the LFS media server
   final String _baseUrl = "https://github.com/holybiblemobileapp-tort/HolyBible_Mobile/raw/main/assets";
 
+  /// Downloads a Bible book (Sync JSON and Audio OGG)
   Future<void> downloadBook(String bookAbbr, int chapter, {Function(double)? onProgress}) async {
     final key = '$bookAbbr$chapter';
     final docDir = await getApplicationDocumentsDirectory();
@@ -24,9 +25,7 @@ class DownloadService {
     if (!await audioDir.exists()) await audioDir.create(recursive: true);
     if (!await syncDir.exists()) await syncDir.create(recursive: true);
 
-    // Sync JSONs are NOT LFS, so they can use raw.githubusercontent or the /raw/ path
     final syncUrl = "$_baseUrl/sync/$key.json";
-    // Audio OGGs ARE LFS, they MUST use the /raw/ path to trigger the redirect
     final audioUrl = "$_baseUrl/audio/$key.ogg";
     
     final audioPath = p.join(audioDir.path, '$key.ogg');
@@ -34,19 +33,9 @@ class DownloadService {
 
     try {
       debugPrint("DOWNLOAD: Attempting Sync JSON from: $syncUrl");
-      
-      // 1. Download Sync JSON
-      await _dio.download(
-        syncUrl,
-        syncPath,
-      ).catchError((e) {
-        debugPrint("DOWNLOAD ERROR: Sync file not found at $syncUrl");
-        throw Exception("Sync File 404: Please verify the URL in your browser.");
-      });
+      await _dio.download(syncUrl, syncPath);
 
       debugPrint("DOWNLOAD: Attempting Audio OGG from: $audioUrl");
-
-      // 2. Download Audio OGG (Handles LFS redirect automatically)
       await _dio.download(
         audioUrl,
         audioPath,
@@ -55,18 +44,39 @@ class DownloadService {
             onProgress(received / total);
           }
         },
-      ).catchError((e) {
-        debugPrint("DOWNLOAD ERROR: Audio file not found at $audioUrl");
-        throw Exception("Audio File 404: Please verify the URL in your browser.");
-      });
+      );
       
       debugPrint("DOWNLOAD: Successfully saved $key to local storage.");
-    } on DioException catch (e) {
-      String msg = "Download Failed: ";
-      if (e.response?.statusCode == 404) msg += "File Not Found (404). Is your repo Private?";
-      else msg += e.message ?? "Network Error";
-      throw Exception(msg);
     } catch (e) {
+      debugPrint("DOWNLOAD ERROR: $e");
+      rethrow;
+    }
+  }
+
+  /// NEW: Downloads a font file for offline use
+  Future<void> downloadFont(String fontFileName, {Function(double)? onProgress}) async {
+    final docDir = await getApplicationDocumentsDirectory();
+    final fontDir = Directory(p.join(docDir.path, 'fonts'));
+    
+    if (!await fontDir.exists()) await fontDir.create(recursive: true);
+
+    final fontUrl = "$_baseUrl/fonts/$fontFileName";
+    final fontPath = p.join(fontDir.path, fontFileName);
+
+    try {
+      debugPrint("DOWNLOAD: Attempting Font from: $fontUrl");
+      await _dio.download(
+        fontUrl,
+        fontPath,
+        onReceiveProgress: (received, total) {
+          if (total != -1 && onProgress != null) {
+            onProgress(received / total);
+          }
+        },
+      );
+      debugPrint("DOWNLOAD: Successfully saved font $fontFileName to $fontPath");
+    } catch (e) {
+      debugPrint("DOWNLOAD ERROR (Font): $e");
       rethrow;
     }
   }
@@ -77,5 +87,12 @@ class DownloadService {
     final audioFile = File(p.join(docDir.path, 'audio', '$key.ogg'));
     final syncFile = File(p.join(docDir.path, 'sync', '$key.json'));
     return await audioFile.exists() && await syncFile.exists();
+  }
+
+  /// NEW: Checks if a font is already downloaded
+  Future<bool> isFontDownloaded(String fontFileName) async {
+    final docDir = await getApplicationDocumentsDirectory();
+    final fontFile = File(p.join(docDir.path, 'fonts', fontFileName));
+    return await fontFile.exists();
   }
 }

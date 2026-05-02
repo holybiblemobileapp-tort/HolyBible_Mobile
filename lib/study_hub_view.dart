@@ -285,10 +285,12 @@ class _StudyHubViewState extends State<StudyHubView> {
         physics: const BouncingScrollPhysics(),
         extensionSet: md.ExtensionSet(
           md.ExtensionSet.gitHubFlavored.blockSyntaxes,
-          [...md.ExtensionSet.gitHubFlavored.inlineSyntaxes, LatexSyntax()],
+          [...md.ExtensionSet.gitHubFlavored.inlineSyntaxes, LatexSyntax(), InlineLatexSyntax(), PhraseSyntax()],
         ),
         builders: {
-          'latex': LatexBuilder(),
+          'latex': LatexBuilder(currentStyle: widget.currentStyle, continuityMap: widget.continuityMap, parenthesesMap: widget.parenthesesMap, isDarkMode: widget.isDarkMode),
+          'inlineLatex': InlineLatexBuilder(currentStyle: widget.currentStyle, continuityMap: widget.continuityMap, parenthesesMap: widget.parenthesesMap, isDarkMode: widget.isDarkMode),
+          'phrase': PhraseBuilder(currentStyle: widget.currentStyle, continuityMap: widget.continuityMap, parenthesesMap: widget.parenthesesMap, isDarkMode: widget.isDarkMode),
         },
         styleSheet: MarkdownStyleSheet(
           h1: TextStyle(color: Colors.brown, fontSize: widget.fontSize * 1.2),
@@ -331,6 +333,81 @@ class _StudyHubViewState extends State<StudyHubView> {
   Widget _buildNotesList() => FutureBuilder<List<Map<String, dynamic>>>(future: _dbService.getNotes(), builder: (context, snapshot) { if (!snapshot.hasData) return const Center(child: CircularProgressIndicator()); return ListView.builder(itemCount: snapshot.data!.length, itemBuilder: (context, index) => ListTile(title: Text(snapshot.data![index]['title'] ?? 'No Title'), subtitle: Text(snapshot.data![index]['location'] ?? ''), onTap: () => widget.onJumpToLocation(snapshot.data![index]['location']))); });
 }
 
+class PhraseSyntax extends md.InlineSyntax {
+  PhraseSyntax() : super(r'Phrase\(([^,)]+)(?:,\s*([^)]+))?\)');
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    final String loc = match.group(1)!;
+    final String? opt = match.group(2);
+    parser.addNode(md.Element('phrase', [md.Text(loc)])
+      ..attributes['option'] = opt ?? '1');
+    return true;
+  }
+}
+
+class PhraseBuilder extends MarkdownElementBuilder {
+  final BibleViewStyle currentStyle;
+  final Map<String, String> continuityMap;
+  final Map<String, String> parenthesesMap;
+  final bool isDarkMode;
+  PhraseBuilder({required this.currentStyle, required this.continuityMap, required this.parenthesesMap, required this.isDarkMode});
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    return DynamicPhraseWidget(
+      location: element.textContent,
+      option: element.attributes['option'] ?? '1',
+      style: currentStyle,
+      continuityMap: continuityMap,
+      parenthesesMap: parenthesesMap,
+      preferredStyle: preferredStyle,
+      isDarkMode: isDarkMode,
+    );
+  }
+}
+
+class DynamicPhraseWidget extends StatelessWidget {
+  final String location;
+  final String option;
+  final BibleViewStyle style;
+  final Map<String, String> continuityMap;
+  final Map<String, String> parenthesesMap;
+  final TextStyle? preferredStyle;
+  final bool isDarkMode;
+
+  const DynamicPhraseWidget({super.key, required this.location, required this.option, required this.style, required this.continuityMap, required this.parenthesesMap, this.preferredStyle, required this.isDarkMode});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: _fetchPhrase(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox(width: 4, height: 4, child: CircularProgressIndicator(strokeWidth: 1));
+        return Text(snapshot.data!, style: preferredStyle);
+      },
+    );
+  }
+
+  Future<String> _fetchPhrase() async {
+    final loc = BibleLogic.parseLocation(location);
+    if (loc == null) return "INVALID_LOC";
+    if (option == '3') {
+      return "($location)";
+    }
+    final db = DatabaseService();
+    final verse = await db.getSpecificVerseByAbbr(loc.bookAbbr, loc.chapter, loc.verse);
+    if (verse == null) return "NOT_FOUND";
+    List<int> indices = [];
+    int end = loc.endWord == 0 ? loc.startWord : loc.endWord;
+    for (int i = loc.startWord; i <= end; i++) indices.add(i);
+    String phrase = BibleLogic.getStyledPhrase(verse, indices, style, continuityMap, parenthesesMap);
+    if (option == '2') {
+      phrase = "$phrase($location)";
+    }
+    return phrase;
+  }
+}
+
 class LatexSyntax extends md.InlineSyntax {
   static final String _latexPattern = r'\$\$([\s\S]+?)\$\$';
   LatexSyntax() : super(_latexPattern);
@@ -343,22 +420,129 @@ class LatexSyntax extends md.InlineSyntax {
   }
 }
 
+class InlineLatexSyntax extends md.InlineSyntax {
+  static final String _pattern = r'\$([^\$]+?)\$';
+  InlineLatexSyntax() : super(_pattern);
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    final String content = match.group(1)!;
+    parser.addNode(md.Element('inlineLatex', [md.Text(content)]));
+    return true;
+  }
+}
+
 class LatexBuilder extends MarkdownElementBuilder {
+  final BibleViewStyle currentStyle;
+  final Map<String, String> continuityMap;
+  final Map<String, String> parenthesesMap;
+  final bool isDarkMode;
+  LatexBuilder({required this.currentStyle, required this.continuityMap, required this.parenthesesMap, required this.isDarkMode});
+
   @override
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    final String text = element.textContent.trim();
-    return RepaintBoundary(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-        width: double.infinity,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: Colors.blueGrey.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
-        child: Math.tex(
-          text,
-          textStyle: preferredStyle?.copyWith(fontSize: 17, fontFamily: 'serif'),
-          onErrorFallback: (err) => SelectableText(text, style: const TextStyle(color: Colors.red, fontFamily: 'Courier')),
-        ),
-      ),
+    return FutureBuilder<String>(
+      future: _processLatex(element.textContent),
+      builder: (context, snapshot) {
+        final String text = snapshot.data ?? element.textContent;
+        return RepaintBoundary(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            width: double.infinity,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: Colors.blueGrey.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Math.tex(
+                text,
+                textStyle: preferredStyle?.copyWith(fontSize: 17, fontFamily: 'serif'),
+                onErrorFallback: (err) => SelectableText(text, style: const TextStyle(color: Colors.red, fontFamily: 'Courier')),
+              ),
+            ),
+          ),
+        );
+      }
     );
+  }
+
+  Future<String> _processLatex(String raw) async {
+    final reg = RegExp(r'Phrase\(([^,)]+)(?:,\s*([^)]+))?\)');
+    String processed = raw;
+    final matches = reg.allMatches(raw).toList();
+    for (int i = 0; i < matches.length; i++) {
+      final m = matches[i];
+      final locStr = m.group(1)!;
+      final opt = m.group(2) ?? '1';
+      final loc = BibleLogic.parseLocation(locStr);
+      if (loc != null) {
+        if (opt == '3') {
+           processed = processed.replaceFirst(m.group(0)!, "\\text{($locStr)}");
+           continue;
+        }
+        final verse = await DatabaseService().getSpecificVerseByAbbr(loc.bookAbbr, loc.chapter, loc.verse);
+        if (verse != null) {
+          int end = loc.endWord == 0 ? loc.startWord : loc.endWord;
+          List<int> idxs = List.generate(end - loc.startWord + 1, (j) => loc.startWord + j);
+          String phrase = BibleLogic.getStyledPhrase(verse, idxs, currentStyle, continuityMap, parenthesesMap);
+          if (opt == '2') {
+            phrase = "$phrase($locStr)";
+          }
+          phrase = "\\text{$phrase}";
+          processed = processed.replaceFirst(m.group(0)!, phrase);
+        }
+      }
+    }
+    return processed;
+  }
+}
+
+class InlineLatexBuilder extends MarkdownElementBuilder {
+  final BibleViewStyle currentStyle;
+  final Map<String, String> continuityMap;
+  final Map<String, String> parenthesesMap;
+  final bool isDarkMode;
+  InlineLatexBuilder({required this.currentStyle, required this.continuityMap, required this.parenthesesMap, required this.isDarkMode});
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    return FutureBuilder<String>(
+      future: _processLatex(element.textContent),
+      builder: (context, snapshot) {
+        return Math.tex(
+          snapshot.data ?? element.textContent,
+          textStyle: preferredStyle?.copyWith(fontSize: 14, fontFamily: 'serif'),
+          onErrorFallback: (err) => Text(element.textContent, style: const TextStyle(color: Colors.red)),
+        );
+      }
+    );
+  }
+
+  Future<String> _processLatex(String raw) async {
+    final reg = RegExp(r'Phrase\(([^,)]+)(?:,\s*([^)]+))?\)');
+    String processed = raw;
+    final matches = reg.allMatches(raw).toList();
+    for (int i = 0; i < matches.length; i++) {
+      final m = matches[i];
+      final locStr = m.group(1)!;
+      final opt = m.group(2) ?? '1';
+      final loc = BibleLogic.parseLocation(locStr);
+      if (loc != null) {
+        if (opt == '3') {
+           processed = processed.replaceFirst(m.group(0)!, "\\text{($locStr)}");
+           continue;
+        }
+        final verse = await DatabaseService().getSpecificVerseByAbbr(loc.bookAbbr, loc.chapter, loc.verse);
+        if (verse != null) {
+          int end = loc.endWord == 0 ? loc.startWord : loc.endWord;
+          List<int> idxs = List.generate(end - loc.startWord + 1, (j) => loc.startWord + j);
+          String phrase = BibleLogic.getStyledPhrase(verse, idxs, currentStyle, continuityMap, parenthesesMap);
+          if (opt == '2') {
+            phrase = "$phrase($locStr)";
+          }
+          phrase = "\\text{$phrase}";
+          processed = processed.replaceFirst(m.group(0)!, phrase);
+        }
+      }
+    }
+    return processed;
   }
 }

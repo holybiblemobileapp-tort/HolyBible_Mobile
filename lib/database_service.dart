@@ -129,7 +129,9 @@ class DatabaseService {
           for (var item in data) {
             String abbr = item['BN']?.toString() ?? '';
             int chapter = int.tryParse(item['CHAPTER']?.toString() ?? '0') ?? 0;
+            // Skip Lev 0 artifacts
             if (abbr == 'Lev' && chapter == 0) continue;
+            
             int wordCount = int.tryParse(item['WORDCOUNT']?.toString() ?? '0') ?? 0;
             List<Map<String, dynamic>> words = [];
             List<String> plainWords = [];
@@ -152,6 +154,14 @@ class DatabaseService {
         });
       } catch (e) { debugPrint("IMPORT ERROR: $e"); }
     }
+  }
+
+  Future<void> clearDatabase() async {
+    final db = await database;
+    await db.execute('DELETE FROM bible');
+    await db.execute('DELETE FROM bible_fts');
+    _searchCache.clear();
+    await initialize();
   }
 
   Future<List<BibleMatch>> search(String query) async {
@@ -434,11 +444,19 @@ class DatabaseService {
   Future<Map<String, String>> getContinuityMap() async { try { final String jsonString = await rootBundle.loadString('assets/CONTINUITY.json'); final List<dynamic> data = json.decode(jsonString); return { for (var item in data) item['FunctionWord'].toString().toLowerCase() : item['Symbol'].toString() }; } catch (_) { return {}; } }
   Future<Map<String, String>> getParenthesesMap() async { try { final String jsonString = await rootBundle.loadString('assets/PARENTHESES.json'); final List<dynamic> data = json.decode(jsonString); return { for (var item in data) item['AuxVerb'].toString().toLowerCase().replaceAll(RegExp(r'[.,;:!?¶\(\)\[\]]'), '').trim() : item['Symbol'].toString() }; } catch (_) { return {}; } }
   Future<List<BibleVerse>> getChapter(String book, int chapter) async { final db = await database; final maps = await db.query('bible', where: 'book = ? AND chapter = ?', whereArgs: [book, chapter], orderBy: 'verse ASC, id ASC'); return maps.map((m) => BibleVerse.fromJson(m)).toList(); }
+  
+  Future<List<BibleVerse>> getChapterByAbbr(String abbr, int chapter) async {
+    final db = await database;
+    final maps = await db.query('bible', where: 'abbr = ? COLLATE NOCASE AND chapter = ?', whereArgs: [abbr, chapter], orderBy: 'verse ASC, id ASC');
+    return maps.map((m) => BibleVerse.fromJson(m)).toList();
+  }
+
   Future<List<int>> getVerseNumbers(String book, int chapter) async { final db = await database; final result = await db.rawQuery('SELECT verse FROM bible WHERE book = ? AND chapter = ? AND verse > 0 ORDER BY verse ASC', [book, chapter]); return result.map((m) => (m['verse'] ?? 0) as int).toList(); }
   Future<List<String>> getBooks() async { final db = await database; final maps = await db.rawQuery('SELECT DISTINCT book FROM bible ORDER BY id ASC'); return maps.map((m) => m['book'] as String).toList(); }
   Future<List<int>> getChapters(String book) async { final db = await database; final result = await db.rawQuery('SELECT DISTINCT chapter FROM bible WHERE book = ? ORDER BY chapter ASC', [book]); return result.map((m) => (m['chapter'] ?? 0) as int).toList(); }
   Future<BibleVerse?> getDailyVerse() async { final db = await database; final maps = await db.rawQuery('SELECT * FROM bible WHERE verse > 0 ORDER BY RANDOM() LIMIT 1'); return maps.isEmpty ? null : BibleVerse.fromJson(maps.first); }
   Future<BibleVerse?> getSpecificVerse(String book, int chapter, int verse) async { final db = await database; final maps = await db.query('bible', where: 'book = ? AND chapter = ? AND verse = ?', whereArgs: [book, chapter, verse], limit: 1); return maps.isEmpty ? null : BibleVerse.fromJson(maps.first); }
+  Future<BibleVerse?> getSpecificVerseByAbbr(String abbr, int chapter, int verse) async { final db = await database; final maps = await db.query('bible', where: 'abbr = ? COLLATE NOCASE AND chapter = ? AND verse = ?', whereArgs: [abbr, chapter, verse], limit: 1); return maps.isEmpty ? null : BibleVerse.fromJson(maps.first); }
   Future<List<Map<String, dynamic>>> getNotes() async => (await database).query('notes', orderBy: 'created_at DESC');
   Future<List<String>> getLibraryBooks() async { final db = await database; final results = await db.rawQuery('SELECT DISTINCT book_title FROM library ORDER BY book_title ASC'); return results.map((r) => r['book_title'] as String).toList(); }
   Future<void> addLibraryChapter(String book, String chapter, int index, String content, List<String> vectors) async { final db = await database; final now = DateTime.now().toIso8601String(); await db.insert('library', { 'book_title': book, 'chapter_title': chapter, 'chapter_index': index, 'content': content, 'source_vectors': vectors.join(','), 'created_at': now }); }
