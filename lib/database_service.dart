@@ -117,42 +117,170 @@ class DatabaseService {
     );
   }
 
-  Future<void> initialize() async {
+  Future<void> initialize({bool includeEpilogue = false}) async {
     final db = await database;
-    final countResult = await db.rawQuery('SELECT COUNT(*) as count FROM bible');
-    if ((Sqflite.firstIntValue(countResult) ?? 0) == 0) {
-      try {
-        final String jsonString = await rootBundle.loadString('assets/Bible.json');
-        final List<dynamic> data = await compute(jsonDecode, jsonString) as List<dynamic>;
-        await db.transaction((txn) async {
-          final batch = txn.batch();
-          for (var item in data) {
-            String abbr = item['BN']?.toString() ?? '';
-            int chapter = int.tryParse(item['CHAPTER']?.toString() ?? '0') ?? 0;
-            // Skip Lev 0 artifacts
-            if (abbr == 'Lev' && chapter == 0) continue;
-            
-            int wordCount = int.tryParse(item['WORDCOUNT']?.toString() ?? '0') ?? 0;
-            List<Map<String, dynamic>> words = [];
-            List<String> plainWords = [];
-            for (int i = 1; i <= wordCount; i++) {
-              String rawWord = item[i.toString()]?.toString() ?? '';
-              String clean = rawWord.replaceAll('[', '').replaceAll(']', '');
-              words.add({'t': clean, 'i': rawWord.startsWith('[') ? 1 : 0});
-              plainWords.add(clean);
-            }
-            batch.insert('bible', {
-              'book': item['BOOKS'], 'abbr': abbr, 'chapter': chapter, 'verse': int.tryParse(item['VERSE']?.toString() ?? '0'),
-              'word_count': wordCount, 'words_data': json.encode(words), 'plain_text': plainWords.join(' '),
-            });
-          }
-          await batch.commit(noResult: true);
-          final bibleData = await txn.query('bible', columns: ['id', 'book', 'abbr', 'plain_text']);
-          final batchFts = txn.batch();
-          for (var row in bibleData) { batchFts.insert('bible_fts', { 'book': row['book'], 'abbr': row['abbr'], 'content': row['plain_text'], 'verse_id': row['id'] }); }
-          await batchFts.commit(noResult: true);
+    
+    final bibleCount = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM bible')) ?? 0;
+    if (bibleCount == 0) {
+      await _importJson(db, 'assets/Bible.json');
+    }
+    
+    if (includeEpilogue) {
+      final epiCount = Sqflite.firstIntValue(await db.rawQuery("SELECT COUNT(*) FROM bible WHERE abbr = 'EPI'")) ?? 0;
+      if (epiCount == 0) {
+        await _importJson(db, 'assets/EPILOGUE.json');
+      }
+    } else {
+      await db.execute("DELETE FROM bible WHERE abbr = 'EPI'");
+      await db.execute("DELETE FROM bible_fts WHERE abbr = 'EPI'");
+    }
+    
+    final currentBibleCount = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM bible')) ?? 0;
+    final ftsCount = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM bible_fts')) ?? 0;
+    if (ftsCount != currentBibleCount) {
+      await refreshFts();
+    }
+  }
+
+  Future<void> refreshFts() async {
+    final db = await database;
+    await db.execute('DELETE FROM bible_fts');
+    final bibleData = await db.query('bible', columns: ['id', 'book', 'abbr', 'plain_text']);
+    final batchFts = db.batch();
+    for (var row in bibleData) { 
+      batchFts.insert('bible_fts', { 
+        'book': row['book'], 'abbr': row['abbr'], 'content': row['plain_text'], 'verse_id': row['id'] 
+      }); 
+    }
+    await batchFts.commit(noResult: true);
+  }
+
+  /// Routine to prepare raw text for the Dynamic Epilogue
+  Future<void> parseAndImportEpilogue(String bookTitle, String rawText) async {
+    final db = await database;
+    final List<String> lines = rawText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    
+    int currentChapter = 1;
+    int currentVerse = 0;
+    
+    List<Map<String, dynamic>> processedVerses = [];
+    
+    for (String line in lines) {
+      // Determine structure markers for Preface formatting
+      bool isHeader = line.toUpperCase().startsWith('PART') || 
+                      line.toUpperCase().startsWith('CHAPTER') || 
+                      line.toUpperCase().startsWith('ARTICLE') ||
+                      line.toUpperCase().startsWith('PREAMBLE');
+      
+      if (isHeader) {
+        if (line.toUpperCase().startsWith('CHAPTER') && currentVerse > 0) {
+          currentChapter++;
+          currentVerse = 0;
+        }
+        // Headers are treated as Verse 0 or Sequential Headers
+      }
+
+      // Prepare word-by-word data
+      List<String> words = line.split(RegExp(r'\s+'));
+      List<Map<String, dynamic>> wordsData = [];
+      for (int i = 0; i < words.length; i++) {
+        wordsData.add({'t': words[i], 'i': 0});
+      }
+
+      processedVerses.add({
+        'BOOK': bookTitle.toUpperCase(),
+        'abbr': 'EPI',
+        'chapter': currentChapter,
+        'verse': currentVerse++,
+        'word_count': words.length,
+        'words_data': json.encode(wordsData),
+        'plain_text': line,
+      });
+    }
+
+    await db.transaction((txn) async {
+      await txn.execute("DELETE FROM bible WHERE abbr = 'EPI'");
+      final batch = txn.batch();
+      for (var v in processedVerses) {
+        batch.insert('bible', {
+          'book': v['BOOK'], 'abbr': v['abbr'], 'chapter': v['chapter'], 'verse': v['verse'],
+          'word_count': v['word_count'], 'words_data': v['words_data'], 'plain_text': v['plain_text'],
         });
-      } catch (e) { debugPrint("IMPORT ERROR: $e"); }
+      }
+      await batch.commit(noResult: true);
+    });
+    
+    await refreshFts();
+    _searchCache.clear();
+  }
+
+  Future<void> updateEpilogue(List<Map<String, dynamic>> jsonData) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.execute("DELETE FROM bible WHERE abbr = 'EPI'");
+      final batch = txn.batch();
+      for (var item in jsonData) {
+        String abbr = 'EPI';
+        int chapter = int.tryParse((item['CHAPTER'] ?? item['chapter'])?.toString() ?? '1') ?? 1;
+        int wordCount = int.tryParse((item['WORDCOUNT'] ?? item['word_count'])?.toString() ?? '0') ?? 0;
+        List<Map<String, dynamic>> words = [];
+        List<String> plainWords = [];
+        for (int i = 1; i <= wordCount; i++) {
+          String rawWord = (item[i.toString()] ?? item["$i "])?.toString() ?? '';
+          String clean = rawWord.replaceAll('[', '').replaceAll(']', '');
+          words.add({'t': clean, 'i': rawWord.startsWith('[') ? 1 : 0});
+          plainWords.add(clean);
+        }
+        batch.insert('bible', {
+          'book': item['BOOK'] ?? 'EPILOGUE', 
+          'abbr': abbr, 
+          'chapter': chapter, 
+          'verse': int.tryParse((item['VERSE'] ?? item['verse'])?.toString() ?? '0') ?? 0,
+          'word_count': wordCount, 
+          'words_data': json.encode(words), 
+          'plain_text': plainWords.join(' '),
+        });
+      }
+      await batch.commit(noResult: true);
+    });
+    await refreshFts();
+    _searchCache.clear();
+  }
+
+  Future<void> _importJson(Database db, String assetPath) async {
+    try {
+      final String jsonString = await rootBundle.loadString(assetPath);
+      final List<dynamic> data = await compute(jsonDecode, jsonString) as List<dynamic>;
+      await db.transaction((txn) async {
+        final batch = txn.batch();
+        for (var item in data) {
+          String abbr = (item['BN'] ?? item['abbr'])?.toString() ?? '';
+          int chapter = int.tryParse((item['CHAPTER'] ?? item['chapter'])?.toString() ?? '0') ?? 0;
+          if (abbr == 'Lev' && chapter == 0) continue;
+          
+          int wordCount = int.tryParse((item['WORDCOUNT'] ?? item['word_count'])?.toString() ?? '0') ?? 0;
+          List<Map<String, dynamic>> words = [];
+          List<String> plainWords = [];
+          for (int i = 1; i <= wordCount; i++) {
+            String rawWord = (item[i.toString()] ?? item["$i "])?.toString() ?? '';
+            String clean = rawWord.replaceAll('[', '').replaceAll(']', '');
+            words.add({'t': clean, 'i': rawWord.startsWith('[') ? 1 : 0});
+            plainWords.add(clean);
+          }
+          batch.insert('bible', {
+            'book': item['BOOK'] ?? item['BOOKS'] ?? item['book'], 
+            'abbr': abbr, 
+            'chapter': chapter, 
+            'verse': int.tryParse((item['VERSE'] ?? item['verse'])?.toString() ?? '0'),
+            'word_count': wordCount, 
+            'words_data': json.encode(words), 
+            'plain_text': plainWords.join(' '),
+          });
+        }
+        await batch.commit(noResult: true);
+      });
+    } catch (e) {
+      debugPrint("IMPORT ERROR ($assetPath): $e");
     }
   }
 

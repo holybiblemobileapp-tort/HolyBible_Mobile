@@ -19,6 +19,7 @@ class BibleWord {
 
 class BibleVerse {
   final int id;
+  final String version;
   final String book;
   final String bookAbbreviation;
   final int chapter;
@@ -30,6 +31,7 @@ class BibleVerse {
 
   BibleVerse({
     required this.id,
+    this.version = 'AKJV',
     required this.book,
     required this.bookAbbreviation,
     required this.chapter,
@@ -44,6 +46,7 @@ class BibleVerse {
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    'version': version,
     'book': book,
     'abbr': bookAbbreviation,
     'chapter': chapter,
@@ -89,6 +92,7 @@ class BibleVerse {
 
     return BibleVerse(
       id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+      version: json['version']?.toString() ?? 'AKJV',
       book: (json['BOOKS'] ?? json['book'])?.toString() ?? '',
       bookAbbreviation: abbr,
       chapter: ch,

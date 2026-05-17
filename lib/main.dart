@@ -15,13 +15,40 @@ import 'audio_service.dart';
 import 'study_hub_view.dart';
 import 'bible_reader_view.dart';
 import 'verse_selector_dialog.dart';
+import 'markdown_extensions.dart';
 
 enum AppTheme { system, light, dark, midnight, warmer }
 enum AppFont { system, serif, sansSerif, monospace }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Explicitly load KaTeX fonts for Windows/Desktop compatibility
+  await _loadKaTeXFonts();
+  
   runApp(const HolyBibleApp());
+}
+
+Future<void> _loadKaTeXFonts() async {
+  final Map<String, String> katexFonts = {
+    'KaTeX_Main': 'KaTeX_Main-Regular.ttf',
+    'KaTeX_Math': 'KaTeX_Math-Italic.ttf',
+    'KaTeX_Size1': 'KaTeX_Size1-Regular.ttf',
+    'KaTeX_Size2': 'KaTeX_Size2-Regular.ttf',
+    'KaTeX_Size3': 'KaTeX_Size3-Regular.ttf',
+    'KaTeX_Size4': 'KaTeX_Size4-Regular.ttf',
+  };
+
+  for (var entry in katexFonts.entries) {
+    try {
+      final loader = FontLoader(entry.key);
+      loader.addFont(rootBundle.load('assets/fonts/${entry.value}'));
+      await loader.load();
+      debugPrint('Font loaded: ${entry.key}');
+    } catch (e) {
+      debugPrint('Error loading font ${entry.key}: $e');
+    }
+  }
 }
 
 class HolyBibleApp extends StatefulWidget {
@@ -172,6 +199,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   BibleViewStyle _currentStyle = BibleViewStyle.standard;
   BibleVerse? _dailyVerse;
   bool _isDbInitializing = true;
+  bool _isAdvancedStudyEnabled = false;
   
   // Persistent Search State
   String? _cachedSearchQuery;
@@ -205,9 +233,12 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
 
   Future<void> _initData() async {
     setState(() => _isDbInitializing = true);
-    await _db.initialize();
-    BibleLogic.clearCache();
     final prefs = await SharedPreferences.getInstance();
+    _isAdvancedStudyEnabled = prefs.getBool('isAdvancedStudyEnabled') ?? false;
+
+    await _db.initialize(includeEpilogue: _isAdvancedStudyEnabled);
+    BibleLogic.clearCache();
+    
     final books = await _db.getBooks();
     final daily = await _db.getDailyVerse();
     final cont = await _db.getContinuityMap();
@@ -240,6 +271,16 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('bibleStyle', style.index);
     setState(() => _currentStyle = style);
+  }
+
+  Future<void> _toggleAdvancedStudy(bool val) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isAdvancedStudyEnabled', val);
+    setState(() {
+      _isAdvancedStudyEnabled = val;
+      _isDbInitializing = true;
+    });
+    await _initData();
   }
 
   Future<void> _saveSearchCache(String? query, List<BibleMatch>? results) async {
@@ -301,7 +342,11 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
   void _jumpToLocation(String loc, {String? highlight}) async {
     final bibleLoc = BibleLogic.parseLocation(loc);
     if (bibleLoc == null) return;
-    final bookName = _books.firstWhere((b) => b.toLowerCase().startsWith(bibleLoc.bookAbbr.toLowerCase()), orElse: () => _books.first);
+    
+    String searchAbbr = bibleLoc.bookAbbr.toLowerCase();
+    if (searchAbbr == 'epi') searchAbbr = 'epilogue';
+    
+    final bookName = _books.firstWhere((b) => b.toLowerCase().startsWith(searchAbbr), orElse: () => _books.first);
     final chapters = await _db.getChapters(bookName);
     final verses = await _db.getChapter(bookName, bibleLoc.chapter);
     final newDaily = verses.firstWhere((v) => v.verse == bibleLoc.verse, orElse: () => verses.first);
@@ -363,7 +408,14 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
         children: [
           _dailyVerse == null ? const Center(child: Text("Loading...")) : _buildWelcomePage(_dailyVerse!),
           _buildBibleNavigator(),
-          StudyHubView(onJumpToLocation: _jumpToLocation, currentStyle: _currentStyle, continuityMap: _continuityMap, parenthesesMap: _parenthesesMap, fontSize: widget.fontSize, isDarkMode: widget.selectedTheme == AppTheme.midnight),
+          StudyHubView(
+            onJumpToLocation: _jumpToLocation, 
+            currentStyle: _currentStyle, 
+            continuityMap: _continuityMap, 
+            parenthesesMap: _parenthesesMap, 
+            fontSize: widget.fontSize, 
+            isDarkMode: widget.selectedTheme == AppTheme.midnight
+          ),
           _buildSettingsTab(),
         ],
       ),
@@ -372,7 +424,7 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
         onDestinationSelected: (i) => setState(() => _selectedIndex = i), 
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home), label: 'Home'), 
-          NavigationDestination(icon: Icon(Icons.menu_book), label: 'Bible'), 
+          NavigationDestination(icon: Icon(Icons.menu_book), label: 'Bible'),
           NavigationDestination(icon: Icon(Icons.science), label: 'Study Hub'), 
           NavigationDestination(icon: Icon(Icons.settings), label: 'Settings')
         ]
@@ -566,13 +618,73 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
       SwitchListTile(title: const Text("Enable Audio Sync"), subtitle: const Text("Highlights words during playback"), value: widget.isAudioEnabled, onChanged: widget.onAudioChanged),
       ListTile(title: const Text("Voice Quality"), trailing: DropdownButton<AudioQuality>(value: widget.audioQuality, items: AudioQuality.values.map((q) => DropdownMenuItem(value: q, child: Text(q.name.toUpperCase()))).toList(), onChanged: (q) => widget.onAudioQualityChanged(q!))),
       const Divider(),
+      const Text("Advanced Study", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)),
+      SwitchListTile(
+        title: const Text("Enable Epilogue"), 
+        subtitle: const Text("Includes Preface for Advanced Studies at end of Bible"),
+        value: _isAdvancedStudyEnabled, 
+        onChanged: (v) => _toggleAdvancedStudy(v)
+      ),
+      if (_isAdvancedStudyEnabled) ListTile(
+        leading: const Icon(Icons.upload_file, color: Colors.brown),
+        title: const Text("Load Study Material"),
+        subtitle: const Text("Replace Epilogue contents with a raw text file"),
+        onTap: () => _showImportEpilogueDialog(),
+      ),
+      const Divider(),
       const Text("BVS Analysis Support", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)),
       const SizedBox(height: 8),
-      ListTile(leading: const Icon(Icons.info_outline, color: Colors.brown), title: const Text("Technical Overview"), subtitle: const Text("BVS Pedagogy and Roadmap"), onTap: () => _showMarkdownDialog("Technical Overview", "assets/MANUAL.md")),
+      ListTile(leading: const Icon(Icons.info_outline, color: Colors.brown), title: const Text("Technical Overview"), subtitle: const Text("BVS Pedagogy and Roadmap"), onTap: () => _showMarkdownDialog("Technical Overview", "README.md")),
       ListTile(leading: const Icon(Icons.menu_book, color: Colors.brown), title: const Text("Instruction Manual"), subtitle: const Text("Understanding the 4-Vector Logic"), onTap: () => _showMarkdownDialog("Instruction Manual", "assets/MANUAL.md")),
+      ListTile(leading: const Icon(Icons.functions, color: Colors.brown), title: const Text("Learn LaTeX"), subtitle: const Text("Equation Syntax Guide"), onTap: () => _showMarkdownDialog("Learn LaTeX", "assets/LearnLaTex.md")),
       ListTile(leading: const Icon(Icons.gavel, color: Colors.brown), title: const Text("No-Warranty Agreement"), subtitle: const Text("Legal Terms and Conditions"), onTap: () => _showMarkdownDialog("License", "assets/NO_WARRANTY_AGREEMENT.md")),
-      ListTile(leading: const Icon(Icons.auto_awesome, color: Colors.brown), title: const Text("About this App"), subtitle: const Text("Charles Eyum Sama | BVS-2024"), onTap: () => _showAssetDialog("About BVS", "assets/HELP.md")),
+      ListTile(leading: const Icon(Icons.auto_awesome, color: Colors.brown), title: const Text("About this App"), subtitle: const Text("Tortpotlord | BVS 2026, God willing"), onTap: () => _showAssetDialog("About BVS", "assets/HELP.md")),
     ]); 
+  }
+
+  void _showImportEpilogueDialog() {
+    final TextEditingController titleCtrl = TextEditingController(text: "Constitution");
+    final TextEditingController textCtrl = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Load Dynamic Epilogue"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: "Book Title")),
+              const SizedBox(height: 8),
+              TextField(
+                controller: textCtrl, 
+                maxLines: 10, 
+                decoration: const InputDecoration(hintText: "Paste raw study material here...", border: OutlineInputBorder()),
+                style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 8.0),
+                child: Text("The app will automatically format this text using the Preface stylesheet.", style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic)),
+              )
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              if (textCtrl.text.isEmpty) return;
+              Navigator.pop(context);
+              setState(() => _isDbInitializing = true);
+              await _db.parseAndImportEpilogue(titleCtrl.text, textCtrl.text);
+              await _initData();
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${titleCtrl.text} loaded into Epilogue")));
+            }, 
+            child: const Text("PROCESS & UPLOAD")
+          )
+        ],
+      )
+    );
   }
 
   void _showAssetDialog(String title, String assetPath) {
@@ -580,38 +692,41 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Tortpotlord Teaching Assistant", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            const SizedBox(height: 8),
-            const Text("The following is an automated curriculum evaluation generated by the BVS engine.", style: TextStyle(fontSize: 12)),
-            const Divider(height: 24),
-            SizedBox(
-              height: 400,
-              width: double.maxFinite,
-              child: FutureBuilder<String>(
-                future: rootBundle.loadString(assetPath),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                  return Markdown(
-                    data: snapshot.data!,
-                    extensionSet: md.ExtensionSet(
-                      md.ExtensionSet.gitHubFlavored.blockSyntaxes,
-                      [...md.ExtensionSet.gitHubFlavored.inlineSyntaxes, LatexSyntax(), InlineLatexSyntax(), PhraseSyntax()],
-                    ),
-                    builders: {
-                      'latex': LatexBuilder(currentStyle: _currentStyle, continuityMap: _continuityMap, parenthesesMap: _parenthesesMap, isDarkMode: widget.selectedTheme == AppTheme.midnight),
-                      'inlineLatex': InlineLatexBuilder(currentStyle: _currentStyle, continuityMap: _continuityMap, parenthesesMap: _parenthesesMap, isDarkMode: widget.selectedTheme == AppTheme.midnight),
-                      'phrase': PhraseBuilder(currentStyle: _currentStyle, continuityMap: _continuityMap, parenthesesMap: _parenthesesMap, isDarkMode: widget.selectedTheme == AppTheme.midnight),
-                    },
-                  );
-                },
+        content: Container(
+          width: double.maxFinite,
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Tortpotlord Teaching Assistant", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 8),
+              const Text("The following is an automated curriculum evaluation generated by the BVS engine.", style: TextStyle(fontSize: 12)),
+              const Divider(height: 24),
+              Expanded(
+                child: FutureBuilder<String>(
+                  future: rootBundle.loadString(assetPath),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
+                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                    return Markdown(
+                      data: snapshot.data!,
+                      extensionSet: md.ExtensionSet(
+                        [...md.ExtensionSet.gitHubFlavored.blockSyntaxes, LatexSyntax()],
+                        [...md.ExtensionSet.gitHubFlavored.inlineSyntaxes, InlineLatexSyntax(), PhraseSyntax()],
+                      ),
+                      builders: {
+                        'latex': LatexBuilder(currentStyle: _currentStyle, continuityMap: _continuityMap, parenthesesMap: _parenthesesMap, isDarkMode: widget.selectedTheme == AppTheme.midnight),
+                        'inlineLatex': InlineLatexBuilder(currentStyle: _currentStyle, continuityMap: _continuityMap, parenthesesMap: _parenthesesMap, isDarkMode: widget.selectedTheme == AppTheme.midnight),
+                        'phrase': PhraseBuilder(currentStyle: _currentStyle, continuityMap: _continuityMap, parenthesesMap: _parenthesesMap, isDarkMode: widget.selectedTheme == AppTheme.midnight),
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text("All correspondence is handled by the Tortpotlord AI Assistant. Please 'Trust but Verify' all outputs against the Source Text.", style: TextStyle(fontSize: 11, color: Colors.brown)),
-          ],
+              const SizedBox(height: 16),
+              const Text("All correspondence is handled by the Tortpotlord AI Assistant. Please 'Trust but Verify' all outputs against the Source Text.", style: TextStyle(fontSize: 11, color: Colors.brown)),
+            ],
+          ),
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close"))],
       ),
@@ -623,18 +738,20 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: SizedBox(
+        content: Container(
           width: double.maxFinite,
+          height: MediaQuery.of(context).size.height * 0.8,
           child: FutureBuilder<String>(
             future: rootBundle.loadString(assetPath),
             builder: (context, snapshot) {
+              if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
               if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
               return Markdown(
                 data: snapshot.data!,
                 physics: const BouncingScrollPhysics(),
                 extensionSet: md.ExtensionSet(
-                  md.ExtensionSet.gitHubFlavored.blockSyntaxes,
-                  [...md.ExtensionSet.gitHubFlavored.inlineSyntaxes, LatexSyntax(), InlineLatexSyntax(), PhraseSyntax()],
+                  [...md.ExtensionSet.gitHubFlavored.blockSyntaxes, LatexSyntax()],
+                  [...md.ExtensionSet.gitHubFlavored.inlineSyntaxes, InlineLatexSyntax(), PhraseSyntax()],
                 ),
                 builders: { 
                   'latex': LatexBuilder(currentStyle: _currentStyle, continuityMap: _continuityMap, parenthesesMap: _parenthesesMap, isDarkMode: widget.selectedTheme == AppTheme.midnight),
@@ -645,6 +762,8 @@ class _MainNavigationState extends State<MainNavigation> with TickerProviderStat
                   h1: TextStyle(color: Colors.brown, fontSize: widget.fontSize * 1.2),
                   h2: TextStyle(color: Colors.blueGrey, fontSize: widget.fontSize),
                   p: TextStyle(fontSize: widget.fontSize * 0.8, height: 1.5),
+                  tableBody: TextStyle(fontSize: widget.fontSize * 0.7),
+                  tableCellsPadding: const EdgeInsets.all(4),
                 ),
               );
             },
@@ -810,33 +929,5 @@ class BibleSearchDelegate extends SearchDelegate<BibleMatch?> {
   @override Widget buildSuggestions(BuildContext context) { 
     if (query.length < 2) return const Center(child: Text("Search Phrases...")); 
     return buildResults(context); 
-  }
-}
-
-class VerseSelectorDialog extends StatefulWidget {
-  const VerseSelectorDialog({super.key});
-  @override State<VerseSelectorDialog> createState() => _VerseSelectorDialogState();
-}
-
-class _VerseSelectorDialogState extends State<VerseSelectorDialog> {
-  String _selectedBook = 'Genesis'; int _selectedChapter = 1; int _selectedVerse = 1; final DatabaseService _db = DatabaseService(); List<String> _books = []; List<int> _chapters = []; List<int> _verses = [];
-  @override void initState() { super.initState(); _loadData(); }
-  Future<void> _loadData() async {
-    final books = await _db.getBooks(); final chapters = await _db.getChapters(_selectedBook); final verses = await _db.getVerseNumbers(_selectedBook, _selectedChapter);
-    setState(() { _books = books; _chapters = chapters; _selectedChapter = 1; _verses = verses; _selectedVerse = 1; });
-  }
-  @override Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Change Verse'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButton<String>(value: _selectedBook, isExpanded: true, items: _books.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(), onChanged: (b) async { final chapters = await _db.getChapters(b!); setState(() { _selectedBook = b; _chapters = chapters; _selectedChapter = 1; }); final verses = await _db.getVerseNumbers(b, 1); setState(() { _verses = verses; _selectedVerse = 1; }); }),
-        Row(children: [
-          Expanded(child: DropdownButton<int>(value: _selectedChapter, isExpanded: true, items: _chapters.map((c) => DropdownMenuItem(value: c, child: Text('Ch $c'))).toList(), onChanged: (c) async { final verses = await _db.getVerseNumbers(_selectedBook, c!); setState(() { _selectedChapter = c; _verses = verses; _selectedVerse = 1; }); })),
-          const SizedBox(width: 10),
-          Expanded(child: DropdownButton<int>(value: _selectedVerse, isExpanded: true, items: _verses.map((v) => DropdownMenuItem(value: v, child: Text('V $v'))).toList(), onChanged: (v) => setState(() => _selectedVerse = v!))),
-        ]),
-      ]),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), ElevatedButton(onPressed: () => Navigator.pop(context, {'book': _selectedBook, 'chapter': _selectedChapter, 'verse': _selectedVerse}), child: const Text('Compare'))],
-    );
   }
 }

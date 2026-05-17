@@ -50,19 +50,40 @@ flutter:
   assets:
     - README.md
     - assets/Bible.json
+    - assets/EPILOGUE.json
     - assets/CONTINUITY.json
     - assets/AUXILIARY.json
     - assets/PARENTHESES.json
     - assets/HELP.md
     - assets/MANUAL.md
+    - assets/LearnLaTex.md
     - assets/NO_WARRANTY_AGREEMENT.md
-    - assets/icon_foreground.png
-    - assets/IGoToTheFather1B.PNG
-    - assets/IGoToTheFather.svg
     - assets/YOUR_STRONG_REASONS.md
+    - assets/IGoToTheFather.svg
+    - assets/IGoToTheFather1B.PNG
     - assets/sync/
     - assets/fonts/
   
-  # The explicit fonts section was removed to prevent build errors.
-  # Since you are using google_fonts and planning a dynamic download system,
-  # these .ttf files don't need to be bundled if they aren't physically present.
+  fonts:
+    - family: KaTeX_Main
+      fonts:
+        - asset: assets/fonts/KaTeX_Main-Regular.ttf
+    - family: KaTeX_Math
+      fonts:
+        - asset: assets/fonts/KaTeX_Math-Italic.ttf
+          style: italic
+    - family: KaTeX_Size1
+      fonts:
+        - asset: assets/fonts/KaTeX_Size1-Regular.ttf
+    - family: KaTeX_Size2
+      fonts:
+        - asset: assets/fonts/KaTeX_Size2-Regular.ttf
+    - family: KaTeX_Size3
+      fonts:
+        - asset: assets/fonts/KaTeX_Size3-Regular.ttf
+    - family: KaTeX_Size4
+      fonts:
+        - asset: assets/fonts/KaTeX_Size4-Regular.ttf
+    - family: CrimsonPro
+      fonts:
+        - asset: assets/fonts/CrimsonPro-Regular.ttf

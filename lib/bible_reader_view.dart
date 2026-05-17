@@ -125,7 +125,9 @@ class _BibleReaderViewState extends State<BibleReaderView> {
   @override
   Widget build(BuildContext context) {
     final bool isMath = widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript;
-    final bool isPreface = widget.bookName.toLowerCase() == 'preface' || (widget.allVersesOfChapter.isNotEmpty && widget.allVersesOfChapter.first.bookAbbreviation == 'Pre');
+    final bool isSpecialLayout = widget.bookName.toUpperCase() == 'PREFACE' || 
+                                widget.bookName.toUpperCase() == 'EPILOGUE' || 
+                                (widget.allVersesOfChapter.isNotEmpty && (widget.allVersesOfChapter.first.bookAbbreviation == 'Pre' || widget.allVersesOfChapter.first.bookAbbreviation == 'EPI'));
     
     return Container(
       color: isMath ? Colors.black : (widget.isDarkMode ? Colors.black : Colors.white),
@@ -133,7 +135,7 @@ class _BibleReaderViewState extends State<BibleReaderView> {
         _buildHeader(isMath), 
         Expanded(child: Stack(
           children: [
-            isPreface ? _buildPrefaceView() : _buildStandardView(),
+            isSpecialLayout ? _buildPrefaceView() : _buildStandardView(),
             Positioned(bottom: 20, left: 20, right: 20, child: ValueListenableBuilder<Set<String>>(valueListenable: _selectionNotifier, builder: (context, selection, _) { if (selection.isEmpty) return const SizedBox.shrink(); return _buildFloatingActionBar(selection); })),
           ],
         ))
@@ -339,34 +341,75 @@ class _BibleReaderViewState extends State<BibleReaderView> {
 
   Widget _buildPrefaceView() {
     final List<Widget> items = [];
-    if (widget.chapter == 0) {
-      for (var v in widget.allVersesOfChapter) {
-        double scale = 1.0; bool isItalic = false; bool isBold = false; bool skip = false;
-        switch (v.verse) { case 0: skip = true; break; case 1: scale = 0.85; break; case 2: scale = 2.4; isBold = true; break; case 3: scale = 0.85; break; case 4: scale = 1.5; isBold = true; break; case 5: case 6: case 7: scale = 0.95; break; case 8: scale = 0.95; break; case 9: scale = 1.0; isItalic = true; break; case 10: case 11: scale = 1.1; break; default: scale = 0.8; }
-        if (!skip) items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: scale, forceItalic: isItalic, forceBold: isBold)));
-      }
-    } else if (widget.chapter == 1) {
-      List<BibleVerse> currentParagraph = [];
-      for (int i = 0; i < widget.allVersesOfChapter.length; i++) {
-        final v = widget.allVersesOfChapter[i];
-        if (v.verse == 0) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.4, forceBold: true))); items.add(const SizedBox(height: 24)); }
-        else if (v.verse >= 1 && v.verse <= 7) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.1, forceBold: true))); }
-        else { currentParagraph.add(v); if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) { items.add(Container(key: _verseKeys[currentParagraph.first.verse], child: _buildParagraph(currentParagraph))); currentParagraph = []; } }
-      }
-    } else {
-      List<BibleVerse> currentParagraph = [];
-      for (int i = 0; i < widget.allVersesOfChapter.length; i++) {
-        final v = widget.allVersesOfChapter[i];
-        if (widget.chapter == 17) {
-           if (v.verse >= 0 && v.verse <= 2) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.3, forceBold: true))); if (v.verse == 2) items.add(const SizedBox(height: 24)); continue; }
-           else if (v.verse >= 3 && v.verse <= 5) { currentParagraph.add(v); if (v.text.contains('¶') || v.verse == 5) { items.add(Container(key: _verseKeys[currentParagraph.first.verse], child: _buildParagraph(currentParagraph))); currentParagraph = []; } continue; }
-           else if (v.verse >= 6) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], customScale: 1.0))); continue; }
+    final String book = widget.bookName.toUpperCase();
+    final String abbr = widget.allVersesOfChapter.isNotEmpty ? widget.allVersesOfChapter.first.bookAbbreviation : "";
+
+    if (abbr == 'Pre' || book == 'PREFACE') {
+      if (widget.chapter == 0) {
+        for (var v in widget.allVersesOfChapter) {
+          double scale = 1.0; bool isItalic = false; bool isBold = false; bool skip = false;
+          switch (v.verse) { case 0: skip = true; break; case 1: scale = 0.85; break; case 2: scale = 2.4; isBold = true; break; case 3: scale = 0.85; break; case 4: scale = 1.5; isBold = true; break; case 5: case 6: case 7: scale = 0.95; break; case 8: scale = 0.95; break; case 9: scale = 1.0; isItalic = true; break; case 10: case 11: scale = 1.1; break; default: scale = 0.8; }
+          if (!skip) items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: scale, forceItalic: isItalic, forceBold: isBold)));
         }
-        if (v.verse == 0) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.4, forceBold: true))); items.add(const SizedBox(height: 24)); }
-        else if (v.verse == 1 && widget.chapter >= 2 && widget.chapter <= 16) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.2, forceBold: true))); items.add(const SizedBox(height: 16)); }
-        else { currentParagraph.add(v); if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) { items.add(Container(key: _verseKeys[currentParagraph.first.verse], child: _buildParagraph(currentParagraph))); currentParagraph = []; } }
+      } else if (widget.chapter == 1) {
+        List<BibleVerse> currentParagraph = [];
+        for (int i = 0; i < widget.allVersesOfChapter.length; i++) {
+          final v = widget.allVersesOfChapter[i];
+          if (v.verse == 0) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.4, forceBold: true))); items.add(const SizedBox(height: 24)); }
+          else if (v.verse >= 1 && v.verse <= 7) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.1, forceBold: true))); }
+          else { currentParagraph.add(v); if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) { items.add(Container(key: _verseKeys[currentParagraph.first.verse], child: _buildParagraph(currentParagraph))); currentParagraph = []; } }
+        }
+      } else {
+        List<BibleVerse> currentParagraph = [];
+        for (int i = 0; i < widget.allVersesOfChapter.length; i++) {
+          final v = widget.allVersesOfChapter[i];
+          if (widget.chapter == 17) {
+             if (v.verse >= 0 && v.verse <= 2) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.3, forceBold: true))); if (v.verse == 2) items.add(const SizedBox(height: 24)); continue; }
+             else if (v.verse >= 3 && v.verse <= 5) { currentParagraph.add(v); if (v.text.contains('¶') || v.verse == 5) { items.add(Container(key: _verseKeys[currentParagraph.first.verse], child: _buildParagraph(currentParagraph))); currentParagraph = []; } continue; }
+             else if (v.verse >= 6) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], customScale: 1.0))); continue; }
+          }
+          if (v.verse == 0) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.4, forceBold: true))); items.add(const SizedBox(height: 24)); }
+          else if (v.verse == 1 && widget.chapter >= 2 && widget.chapter <= 16) { items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: 1.2, forceBold: true))); items.add(const SizedBox(height: 16)); }
+          else { currentParagraph.add(v); if (v.text.contains('¶') || i == widget.allVersesOfChapter.length - 1) { items.add(Container(key: _verseKeys[currentParagraph.first.verse], child: _buildParagraph(currentParagraph))); currentParagraph = []; } }
+        }
+      }
+    } else if (abbr == 'EPI' || book == 'EPILOGUE') {
+      // Epilogue: Preface for Advanced Studies
+      items.add(const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Text("Preface for Advanced Studies", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.brown)))));
+      List<BibleVerse> currentParagraph = [];
+      for (int i = 0; i < widget.allVersesOfChapter.length; i++) {
+        final v = widget.allVersesOfChapter[i];
+        bool isHeader = v.verse == 0 || (v.verse == 1 && (v.text.toUpperCase().contains('CHAPTER') || v.text.toUpperCase().contains('PART') || v.text.toUpperCase().contains('ARTICLE')));
+        
+        if (isHeader) {
+          if (currentParagraph.isNotEmpty) {
+            items.add(Container(key: _verseKeys[currentParagraph.first.verse], child: _buildParagraph(currentParagraph)));
+            currentParagraph = [];
+          }
+          items.add(Container(key: _verseKeys[v.verse], child: _buildParagraph([v], center: true, customScale: v.verse == 0 ? 1.4 : 1.1, forceBold: true)));
+          if (v.verse == 0) items.add(const SizedBox(height: 12));
+        } else {
+          currentParagraph.add(v);
+          bool hasManualBreak = v.text.contains('¶');
+          bool isLastVerse = i == widget.allVersesOfChapter.length - 1;
+          bool shouldBreak = hasManualBreak || isLastVerse;
+
+          if (!shouldBreak && i + 1 < widget.allVersesOfChapter.length) {
+            String nextText = widget.allVersesOfChapter[i + 1].text.trim();
+            // Automatically break before bullet points or numbered clauses
+            if (nextText.startsWith('-') || RegExp(r'^\(\d+\)').hasMatch(nextText)) {
+              shouldBreak = true;
+            }
+          }
+
+          if (shouldBreak) {
+            items.add(Container(key: _verseKeys[currentParagraph.first.verse], child: _buildParagraph(currentParagraph)));
+            currentParagraph = [];
+          }
+        }
       }
     }
+
     return ListView(controller: _scrollController, padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8), children: items);
   }
 

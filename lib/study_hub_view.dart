@@ -2,27 +2,30 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'database_service.dart';
 import 'bible_model.dart';
 import 'bible_logic.dart';
+import 'markdown_extensions.dart';
+
+enum VectorDirection { before, after, both }
+enum ViewMode { limitTable, dictionary }
 
 class StudyHubView extends StatefulWidget {
+  final double fontSize;
   final Function(String, {String? highlight}) onJumpToLocation;
   final BibleViewStyle currentStyle;
   final Map<String, String> continuityMap;
   final Map<String, String> parenthesesMap;
-  final double fontSize;
   final bool isDarkMode;
 
   const StudyHubView({
-    super.key, 
+    super.key,
+    required this.fontSize,
     required this.onJumpToLocation,
     required this.currentStyle,
     required this.continuityMap,
     required this.parenthesesMap,
-    required this.fontSize,
     required this.isDarkMode,
   });
 
@@ -30,10 +33,7 @@ class StudyHubView extends StatefulWidget {
   State<StudyHubView> createState() => _StudyHubViewState();
 }
 
-enum VectorDirection { before, after, both }
-enum ViewMode { limitTable, dictionary }
-
-class _StudyHubViewState extends State<StudyHubView> {
+class _StudyHubViewState extends State<StudyHubView> with SingleTickerProviderStateMixin {
   final DatabaseService _dbService = DatabaseService();
   final TextEditingController _dictController = TextEditingController();
   final TextEditingController _rangeController = TextEditingController();
@@ -48,43 +48,26 @@ class _StudyHubViewState extends State<StudyHubView> {
   double _nValue = 3.0;
   
   int _currentPage = 0;
-  final int _pageSize = 1000;
+  final int _pageSize = 100;
   int _totalRecords = 0;
 
-  final Map<String, Map<String, String>> _selectedDefinitions = {};
-  late Future<String> _markdownFuture;
+  final Map<String, Set<String>> _selectedDefinitions = {};
+  late Future<String> _strongReasonsFuture;
 
   final String _legendText = "↦ BEFORE | ↤ AFTER | ↦ ↤ BOTH | WTOTAG: Mat18:20:2-7";
 
   @override
   void initState() {
     super.initState();
-    _markdownFuture = rootBundle.loadString('assets/YOUR_STRONG_REASONS.md');
-  }
-
-  List<VectorSpaceRow> get _filteredRows {
-    if (_selectedDefinitions.isEmpty) return _vectorSpaceRows;
-    List<VectorSpaceRow> filtered = [];
-    for (var originalRow in _vectorSpaceRows) {
-      if (!_selectedDefinitions.containsKey(originalRow.location)) continue;
-      final selections = _selectedDefinitions[originalRow.location]!;
-      final filteredRow = VectorSpaceRow(word: originalRow.word, location: originalRow.location);
-      for (var pair in originalRow.witnessesBefore) {
-        if (selections.containsKey(pair.spiritual.phrase) && selections[pair.spiritual.phrase] == pair.spiritual.location) filteredRow.witnessesBefore.add(pair);
-      }
-      for (var pair in originalRow.witnessesAfter) {
-        if (selections.containsKey(pair.spiritual.phrase) && selections[pair.spiritual.phrase] == pair.spiritual.location) filteredRow.witnessesAfter.add(pair);
-      }
-      if (filteredRow.witnessesBefore.isNotEmpty || filteredRow.witnessesAfter.isNotEmpty) filtered.add(filteredRow);
-    }
-    return filtered;
+    _strongReasonsFuture = rootBundle.loadString('assets/YOUR_STRONG_REASONS.md');
   }
 
   @override
   void dispose() {
     _dictController.dispose();
     _rangeController.dispose();
-    _horizontalScroll.dispose(); _verticalScroll.dispose();
+    _horizontalScroll.dispose();
+    _verticalScroll.dispose();
     super.dispose();
   }
 
@@ -131,8 +114,8 @@ class _StudyHubViewState extends State<StudyHubView> {
       if (selectAll) {
         for (var row in _vectorSpaceRows) {
           final defs = _selectedDefinitions.putIfAbsent(row.location, () => {});
-          for (var p in row.witnessesBefore) defs[p.spiritual.phrase] = p.spiritual.location;
-          for (var p in row.witnessesAfter) defs[p.spiritual.phrase] = p.spiritual.location;
+          for (var p in row.witnessesBefore) defs.add(p.spiritual.phrase);
+          for (var p in row.witnessesAfter) defs.add(p.spiritual.phrase);
         }
       } else {
         _selectedDefinitions.clear();
@@ -140,91 +123,72 @@ class _StudyHubViewState extends State<StudyHubView> {
     });
   }
 
+  void _toggleSelection(String location, String phrase, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedDefinitions.putIfAbsent(location, () => {}).add(phrase);
+      } else {
+        _selectedDefinitions[location]?.remove(phrase);
+        if (_selectedDefinitions[location]?.isEmpty ?? false) _selectedDefinitions.remove(location);
+      }
+    });
+  }
+
   void _nextPage() { if ((_currentPage + 1) * _pageSize < _totalRecords) { _currentPage++; _runInterpretation(resetPage: false); } }
   void _prevPage() { if (_currentPage > 0) { _currentPage--; _runInterpretation(resetPage: false); } }
 
-  String _getStyleLabel() {
-    switch (widget.currentStyle) {
-      case BibleViewStyle.standard: return "AKJV 1611 PCE";
-      case BibleViewStyle.superscript: return "ARRAY";
-      case BibleViewStyle.mathematics: return "MathKJVP";
-      case BibleViewStyle.mathematics2: return "MathKJVS";
-      case BibleViewStyle.mathematicsUnconstraint: return "MathKJVT";
-    }
-  }
-
-  Widget _buildStyledPhrase(BibleMatch m, {bool isBullet = false}) {
-    final double fs = widget.fontSize * 0.7;
-    final locationStyle = TextStyle(fontSize: fs * 0.7, color: widget.isDarkMode ? Colors.amber[200] : Colors.grey[700], fontFamily: 'Courier');
-    final bulletStr = isBullet ? "◦ " : "";
-    final String styledText = m.phrase;
-
-    if (widget.currentStyle == BibleViewStyle.standard) {
-      return Text("$bulletStr$styledText(${m.location})", style: TextStyle(fontSize: fs, color: widget.isDarkMode ? Colors.white70 : Colors.black87));
-    }
-    final bool isMath = widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript;
-    return RichText(text: TextSpan(children: [
-      if (isBullet) TextSpan(text: "◦ ", style: TextStyle(fontSize: fs, color: Colors.grey)),
-      TextSpan(text: styledText, style: TextStyle(color: isMath ? Colors.white : (widget.isDarkMode ? Colors.white70 : Colors.black), fontSize: fs, fontFamily: isMath ? 'Courier' : null, fontWeight: isMath ? FontWeight.bold : FontWeight.normal, shadows: isMath ? [Shadow(blurRadius: 2.0, color: Colors.cyanAccent)] : null)),
-      TextSpan(text: " (${m.location})", style: locationStyle),
-    ]));
-  }
-
-  Future<void> _handleChoiceExport() async {
-    bool? includeLimitTable = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text("Export Choices"), content: Text(_selectedDefinitions.isNotEmpty ? "Export ONLY the ${_selectedDefinitions.length} selected related records from the Limit Table?" : "Include the current Limit Table Grid (WYSIWYG) in the export?"), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("No, Dict only")), ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("Yes, Include Grid"))]));
-    if (includeLimitTable == null) return;
-    StringBuffer sb = StringBuffer(); sb.writeln("Title: Limit Table for \"${_dictController.text}\" in the ${_getStyleLabel()} (Page ${_currentPage + 1})"); sb.writeln(_legendText); sb.writeln("-" * 60 + "\n");
-    if (includeLimitTable) {
-      String header = "BIBLEWORD | LOCATION";
-      if (_selectedDirection != VectorDirection.after) header += " | WTOTAG_BEF ↦ | CSTWS_BEF";
-      if (_selectedDirection != VectorDirection.before) header += " | ↤ WTOTAG_AFT | CSTWS_AFT";
-      sb.writeln(header);
-      final rowsToExport = _filteredRows;
-      for (var row in rowsToExport) {
-        int totalSubRows = max(row.witnessesBefore.length, row.witnessesAfter.length);
-        if (totalSubRows == 0) totalSubRows = 1;
-        for (int i = 0; i < totalSubRows; i++) {
-          String line = "${row.word} | ${row.location}";
-          if (_selectedDirection != VectorDirection.after) {
-            String wb = ""; String sbCol = "";
-            if (i < row.witnessesBefore.length) {
-               wb = row.witnessesBefore[i].witness.phrase + "(${row.witnessesBefore[i].witness.location})";
-               sbCol = row.witnessesBefore[i].spiritual.phrase + "(${row.witnessesBefore[i].spiritual.location})";
-            }
-            line += " | $wb | $sbCol";
-          }
-          if (_selectedDirection != VectorDirection.before) {
-            String wa = ""; String sa = "";
-            if (i < row.witnessesAfter.length) {
-               wa = row.witnessesAfter[i].witness.phrase + "(${row.witnessesAfter[i].witness.location})";
-               sa = row.witnessesAfter[i].spiritual.phrase + "(${row.witnessesAfter[i].spiritual.location})";
-            }
-            line += " | $wa | $sa";
-          }
-          sb.writeln(line);
-        }
-      }
-      sb.writeln("\n");
-    }
-    if (_selectedDefinitions.isNotEmpty) {
-      sb.writeln("--- DICTIONARY ENTRIES ---");
-      for (var entry in _selectedDefinitions.entries) {
-        for (var def in entry.value.entries) {
-           sb.writeln("${entry.key} = ${def.key}(${def.value})");
-        }
-      }
-    }
-    Clipboard.setData(ClipboardData(text: sb.toString()));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Exported Selection to Clipboard")));
+  void _copyDictOutput() {
+    if (_selectedDefinitions.isEmpty) return;
+    final buffer = StringBuffer();
+    buffer.writeln("PHRASE: ${_dictController.text}");
+    _selectedDefinitions.forEach((loc, witnesses) {
+      buffer.writeln("$loc: ${witnesses.join(' ')}");
+    });
+    Clipboard.setData(ClipboardData(text: buffer.toString()));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Dictionary output copied to clipboard")));
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(length: 4, child: Column(children: [
-      Container(width: double.infinity, color: Colors.brown[50], padding: const EdgeInsets.symmetric(vertical: 4), child: Text("Study to shew thyself approved unto God,", textAlign: TextAlign.center, style: TextStyle(fontStyle: FontStyle.italic, color: Colors.brown, fontSize: widget.fontSize * 0.6, fontWeight: FontWeight.bold))),
-      TabBar(isScrollable: true, labelColor: Colors.brown, unselectedLabelColor: Colors.grey, indicatorColor: Colors.brown, tabs: const [Tab(icon: Icon(Icons.grid_on, size: 18), text: "Wholesome Words"), Tab(icon: Icon(Icons.functions, size: 18), text: "Your Strong Reasons"), Tab(icon: Icon(Icons.library_books, size: 18), text: "Audio Books"), Tab(icon: Icon(Icons.note, size: 18), text: "Study Notes")]),
-      Expanded(child: TabBarView(physics: const NeverScrollableScrollPhysics(), children: [_buildAnalysisTab(), _buildStrongReasonsTab(), _buildBooksList(), _buildNotesList()]))
-    ]));
+    return DefaultTabController(
+      length: 4, 
+      child: Scaffold(
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(72),
+          child: Container(
+            color: Theme.of(context).appBarTheme.backgroundColor,
+            child: TabBar(
+              isScrollable: true, 
+              labelColor: Colors.brown, 
+              unselectedLabelColor: Colors.grey, 
+              indicatorColor: Colors.brown,
+              tabs: const [
+                Tab(icon: Icon(Icons.grid_on, size: 18), text: "Wholesome Words", height: 60), 
+                Tab(icon: Icon(Icons.functions, size: 18), text: "Your Strong Reasons", height: 60), 
+                Tab(icon: Icon(Icons.note, size: 18), text: "Study Notes", height: 60),
+                Tab(icon: Icon(Icons.library_books, size: 18), text: "Audio Book", height: 60), 
+              ]
+            ),
+          ),
+        ),
+        body: Column(
+          children: [
+            Container(width: double.infinity, color: Colors.brown[50], padding: const EdgeInsets.symmetric(vertical: 4), child: Text("Study to shew thyself approved unto God,", textAlign: TextAlign.center, style: TextStyle(fontStyle: FontStyle.italic, color: Colors.brown, fontSize: widget.fontSize * 0.6, fontWeight: FontWeight.bold))),
+            Expanded(
+              child: TabBarView(
+                physics: const NeverScrollableScrollPhysics(), 
+                children: [
+                  _buildAnalysisTab(), 
+                  _buildStrongReasonsTab(), 
+                  _buildNotesList(),
+                  _buildBooksList(), 
+                ]
+              )
+            ),
+          ],
+        ),
+      )
+    );
   }
 
   Widget _buildAnalysisTab() {
@@ -246,46 +210,51 @@ class _StudyHubViewState extends State<StudyHubView> {
           const SizedBox(width: 8),
           ElevatedButton(onPressed: _isInterpreting ? null : () => _runInterpretation(resetPage: true), child: const Text("GENERATE")),
         ]),
-        ExpansionTile(title: Text(_totalRecords > 0 ? "Results: $startRange - $endRange of $_totalRecords" : "Analysis Controls", style: TextStyle(fontSize: fs * 0.8, fontWeight: FontWeight.bold, color: Colors.blue)), dense: true, visualDensity: VisualDensity.compact, children: [
-          Row(children: [
-            Text(" N: ${_nValue.toInt()}", style: TextStyle(fontSize: fs * 0.8, fontWeight: FontWeight.bold)),
-            Expanded(child: Slider(value: _nValue, min: 2, max: 6, divisions: 4, label: _nValue.toInt().toString(), onChanged: (v) => setState(() => _nValue = v))),
-            SegmentedButton<VectorDirection>(segments: const [ButtonSegment(value: VectorDirection.before, label: Text("BEF", style: TextStyle(fontSize: 9))), ButtonSegment(value: VectorDirection.after, label: Text("AFT", style: TextStyle(fontSize: 9))), ButtonSegment(value: VectorDirection.both, label: Text("BOTH", style: TextStyle(fontSize: 9)))], selected: {_selectedDirection}, onSelectionChanged: (s) => setState(() => _selectedDirection = s.first)),
-            const SizedBox(width: 8),
-            SegmentedButton<ViewMode>(segments: const [ButtonSegment(value: ViewMode.limitTable, label: Text("GRID", style: TextStyle(fontSize: 9))), ButtonSegment(value: ViewMode.dictionary, label: Text("DICT", style: TextStyle(fontSize: 9)))], selected: {_selectedView}, onSelectionChanged: (s) => setState(() => _selectedView = s.first)),
-          ]),
-        ]),
+        ExpansionTile(
+          title: Text(_totalRecords > 0 ? "Results: $startRange - $endRange of $_totalRecords" : "Analysis Controls", style: TextStyle(fontSize: fs * 0.8, fontWeight: FontWeight.bold, color: Colors.blue)), 
+          visualDensity: VisualDensity.compact,
+          children: [
+            Row(children: [
+              Text(" N: ${_nValue.toInt()}", style: TextStyle(fontSize: fs * 0.8, fontWeight: FontWeight.bold)),
+              Expanded(child: Slider(value: _nValue, min: 2, max: 6, divisions: 4, label: _nValue.toInt().toString(), onChanged: (v) => setState(() => _nValue = v))),
+              SegmentedButton<VectorDirection>(segments: const [ButtonSegment(value: VectorDirection.before, label: Text("BEF", style: TextStyle(fontSize: 9))), ButtonSegment(value: VectorDirection.after, label: Text("AFT", style: TextStyle(fontSize: 9))), ButtonSegment(value: VectorDirection.both, label: Text("BOTH", style: TextStyle(fontSize: 9)))], selected: {_selectedDirection}, onSelectionChanged: (s) => setState(() => _selectedDirection = s.first)),
+              const SizedBox(width: 8),
+              SegmentedButton<ViewMode>(segments: const [ButtonSegment(value: ViewMode.limitTable, label: Text("GRID", style: TextStyle(fontSize: 9))), ButtonSegment(value: ViewMode.dictionary, label: Text("DICT", style: TextStyle(fontSize: 9)))], selected: {_selectedView}, onSelectionChanged: (s) => setState(() => _selectedView = s.first)),
+            ]),
+          ],
+        ),
       ])),
       if (_totalRecords > _pageSize) Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), color: Colors.grey[200], child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [IconButton(icon: const Icon(Icons.arrow_back_ios, size: 16), onPressed: _currentPage > 0 && !_isInterpreting ? _prevPage : null), Text("Page ${_currentPage + 1} ($startRange - $endRange)", style: TextStyle(fontSize: fs * 0.8, fontWeight: FontWeight.bold)), IconButton(icon: const Icon(Icons.arrow_forward_ios, size: 16), onPressed: endRange < _totalRecords && !_isInterpreting ? _nextPage : null)])),
       if (_isInterpreting) const Expanded(child: Center(child: CircularProgressIndicator()))
-      else if (_vectorSpaceRows.isNotEmpty) Expanded(flex: 4, child: Column(children: [
+      else if (_vectorSpaceRows.isNotEmpty) Expanded(child: Column(children: [
         Padding(padding: const EdgeInsets.symmetric(horizontal: 12.0), child: Row(children: [
           Expanded(child: Text(_legendText, style: TextStyle(fontSize: fs * 0.6, color: Colors.grey))),
           if (_selectedDefinitions.isNotEmpty) Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(label: const Text("Clear Filter", style: TextStyle(fontSize: 9)), onPressed: () => setState(() => _selectedDefinitions.clear()))),
-          ElevatedButton.icon(onPressed: _handleChoiceExport, icon: const Icon(Icons.copy, size: 14), label: const Text("Export", style: TextStyle(fontSize: 11))),
+          IconButton(onPressed: _copyDictOutput, icon: const Icon(Icons.copy, size: 18), tooltip: "Export Selection"),
           const SizedBox(width: 12),
-          Column(mainAxisSize: MainAxisSize.min, children: [
+          Column(mainAxisSize: min(4, _vectorSpaceRows.length).toDouble() > 0 ? MainAxisSize.min : MainAxisSize.max, children: [
             const Text("Select All", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold)),
             Checkbox(visualDensity: VisualDensity.compact, value: allSelected, onChanged: _toggleSelectAll),
           ]),
         ])),
         const Divider(height: 1),
-        Expanded(child: Container(color: (widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript) ? Colors.black : null, child: _selectedView == ViewMode.limitTable ? _buildLimitTable(_filteredRows) : _buildDictionaryTable(_vectorSpaceRows))),
+        Expanded(child: Container(color: (widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript) ? Colors.black : null, child: _selectedView == ViewMode.limitTable ? _buildLimitTable() : _buildDictionaryTable())),
       ]))
       else const Expanded(child: Center(child: Text("BIBLE VECTOR SPACE Analysis.", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)))),
     ]);
   }
 
   Widget _buildStrongReasonsTab() => FutureBuilder<String>(
-    future: _markdownFuture,
+    future: _strongReasonsFuture,
     builder: (context, snapshot) {
+      if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
       if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
       return Markdown(
         data: snapshot.data!,
         physics: const BouncingScrollPhysics(),
         extensionSet: md.ExtensionSet(
-          md.ExtensionSet.gitHubFlavored.blockSyntaxes,
-          [...md.ExtensionSet.gitHubFlavored.inlineSyntaxes, LatexSyntax(), InlineLatexSyntax(), PhraseSyntax()],
+          [...md.ExtensionSet.gitHubFlavored.blockSyntaxes, LatexSyntax()],
+          [...md.ExtensionSet.gitHubFlavored.inlineSyntaxes, InlineLatexSyntax(), PhraseSyntax()],
         ),
         builders: {
           'latex': LatexBuilder(currentStyle: widget.currentStyle, continuityMap: widget.continuityMap, parenthesesMap: widget.parenthesesMap, isDarkMode: widget.isDarkMode),
@@ -297,252 +266,90 @@ class _StudyHubViewState extends State<StudyHubView> {
           h2: TextStyle(color: Colors.blueGrey, fontSize: widget.fontSize),
           p: TextStyle(fontSize: widget.fontSize * 0.8, height: 1.5),
           listBullet: TextStyle(fontSize: widget.fontSize * 0.8),
+          tableBody: TextStyle(fontSize: widget.fontSize * 0.7),
+          tableCellsPadding: const EdgeInsets.all(4),
         ),
       );
     },
   );
 
-  Widget _buildLimitTable(List<VectorSpaceRow> rows) {
+  Widget _buildLimitTable() {
     final double fs = widget.fontSize * 0.7;
-    return Scrollbar(controller: _verticalScroll, thumbVisibility: true, child: Scrollbar(controller: _horizontalScroll, thumbVisibility: true, notificationPredicate: (notif) => notif.depth == 1, child: SingleChildScrollView(controller: _verticalScroll, child: SingleChildScrollView(controller: _horizontalScroll, scrollDirection: Axis.horizontal, child: DataTable(columnSpacing: 15, dataRowMaxHeight: double.infinity, headingRowHeight: 30, headingRowColor: MaterialStateProperty.all(Colors.red[50]!), border: TableBorder.all(color: Colors.grey[300]!), columns: [
-      DataColumn(label: Text('BIBLEWORD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
-      DataColumn(label: Text('LOCATION', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
-      if (_selectedDirection != VectorDirection.after) ...[DataColumn(label: Text('WTOTAG_BEF ↦', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))), DataColumn(label: Text('CSTWS_BEF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red)))],
-      if (_selectedDirection != VectorDirection.before) ...[DataColumn(label: Text('↤ WTOTAG_AFT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))), DataColumn(label: Text('CSTWS_AFT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red)))]
-    ], rows: rows.map((row) => DataRow(cells: [
-      DataCell(Text(row.word, style: TextStyle(fontSize: fs, fontFamily: 'Courier'))),
-      DataCell(InkWell(child: Text(row.location, style: TextStyle(fontSize: fs, color: Colors.blue, fontFamily: 'Courier')), onTap: () => widget.onJumpToLocation(row.location))),
-      if (_selectedDirection != VectorDirection.after) ...[DataCell(Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.witnessesBefore.map((p) => _buildStyledPhrase(p.witness)).toList())), DataCell(Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.witnessesBefore.map((p) => _buildStyledPhrase(p.spiritual, isBullet: true)).toList()))],
-      if (_selectedDirection != VectorDirection.before) ...[DataCell(Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.witnessesAfter.map((p) => _buildStyledPhrase(p.witness)).toList())), DataCell(Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.witnessesAfter.map((p) => _buildStyledPhrase(p.spiritual, isBullet: true)).toList()))]
-    ])).toList())))));
+    return Scrollbar(
+      controller: _verticalScroll, thumbVisibility: true,
+      child: Scrollbar(
+        controller: _horizontalScroll, thumbVisibility: true,
+        notificationPredicate: (notif) => notif.depth == 1,
+        child: SingleChildScrollView(
+          controller: _verticalScroll,
+          child: SingleChildScrollView(
+            controller: _horizontalScroll, scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columnSpacing: 15, dataRowMaxHeight: double.infinity, headingRowHeight: 30,
+              headingRowColor: MaterialStateProperty.all(Colors.red[50]!),
+              border: TableBorder.all(color: Colors.grey[300]!),
+              columns: [
+                DataColumn(label: Text('BIBLEWORD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                DataColumn(label: Text('LOCATION', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                if (_selectedDirection != VectorDirection.after) ...[
+                  DataColumn(label: Text('WTOTAG_BEF ↦', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                  DataColumn(label: Text('CSTWS_BEF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                ],
+                if (_selectedDirection != VectorDirection.before) ...[
+                  DataColumn(label: Text('↤ WTOTAG_AFT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                  DataColumn(label: Text('CSTWS_AFT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fs * 0.8, color: Colors.red))),
+                ],
+              ],
+              rows: _vectorSpaceRows.map((row) => DataRow(
+                cells: [
+                  DataCell(Text(row.word, style: TextStyle(fontSize: fs, fontFamily: 'Courier', color: widget.isDarkMode ? Colors.white : Colors.black))),
+                  DataCell(InkWell(child: Text(row.location, style: TextStyle(fontSize: fs, color: Colors.blue, fontFamily: 'Courier')), onTap: () => widget.onJumpToLocation(row.location))),
+                  if (_selectedDirection != VectorDirection.after) ...[
+                    DataCell(ConstrainedBox(constraints: const BoxConstraints(maxWidth: 250), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.witnessesBefore.map((p) => _buildStyledPhrase(p.witness)).toList()))),
+                    DataCell(ConstrainedBox(constraints: const BoxConstraints(maxWidth: 250), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.witnessesBefore.map((p) => _buildStyledPhrase(p.spiritual, isBullet: true)).toList()))),
+                  ],
+                  if (_selectedDirection != VectorDirection.before) ...[
+                    DataCell(ConstrainedBox(constraints: const BoxConstraints(maxWidth: 250), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.witnessesAfter.map((p) => _buildStyledPhrase(p.witness)).toList()))),
+                    DataCell(ConstrainedBox(constraints: const BoxConstraints(maxWidth: 250), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: row.witnessesAfter.map((p) => _buildStyledPhrase(p.spiritual, isBullet: true)).toList()))),
+                  ],
+                ],
+              )).toList(),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
-  Widget _buildDictionaryTable(List<VectorSpaceRow> rows) {
+  Widget _buildDictionaryTable() {
     final double fs = widget.fontSize * 0.7;
-    return ListView.builder(itemCount: rows.length, itemBuilder: (context, index) {
-      final row = rows[index]; final List<BibleMatch> definitions = [...row.witnessesBefore.map((p) => p.spiritual), ...row.witnessesAfter.map((p) => p.spiritual)];
+    return ListView.builder(itemCount: _vectorSpaceRows.length, itemBuilder: (context, index) {
+      final row = _vectorSpaceRows[index]; final List<BibleMatch> definitions = [...row.witnessesBefore.map((p) => p.spiritual), ...row.witnessesAfter.map((p) => p.spiritual)];
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(width: double.maxFinite, color: Colors.grey[900], padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), child: Text("${row.word} (${row.location})", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: fs))),
-        ...definitions.map((def) => ListTile(dense: true, visualDensity: VisualDensity.compact, title: _buildStyledPhrase(def), trailing: Checkbox(value: _selectedDefinitions[row.location]?.containsKey(def.phrase) ?? false, onChanged: (v) { setState(() { if (v!) { _selectedDefinitions.putIfAbsent(row.location, () => {})[def.phrase] = def.location; } else { _selectedDefinitions[row.location]?.remove(def.phrase); } }); }))),
+        Container(width: double.maxFinite, color: Colors.grey[900], padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), child: InkWell(onTap: () => widget.onJumpToLocation(row.location), child: Text("${row.word} (${row.location})", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: fs)))),
+        ...definitions.map((def) => ListTile(dense: true, visualDensity: VisualDensity.compact, title: _buildStyledPhrase(def), trailing: Checkbox(value: _selectedDefinitions[row.location]?.contains(def.phrase) ?? false, onChanged: (v) => _toggleSelection(row.location, def.phrase, v!)))),
         const Divider(height: 1),
       ]);
     });
   }
 
+  Widget _buildStyledPhrase(BibleMatch m, {bool isBullet = false}) {
+    final double fs = widget.fontSize * 0.7;
+    final locationStyle = TextStyle(fontSize: fs * 0.7, color: widget.isDarkMode ? Colors.amber[200] : Colors.grey[700], fontFamily: 'Courier');
+    final bulletStr = isBullet ? "◦ " : "";
+    final String styledText = m.phrase;
+    final bool isMath = widget.currentStyle != BibleViewStyle.standard && widget.currentStyle != BibleViewStyle.superscript;
+
+    if (widget.currentStyle == BibleViewStyle.standard) {
+      return Text("$bulletStr$styledText(${m.location})", style: TextStyle(fontSize: fs, color: widget.isDarkMode ? Colors.white70 : Colors.black87));
+    }
+    return RichText(text: TextSpan(children: [
+      if (isBullet) TextSpan(text: "◦ ", style: TextStyle(fontSize: fs, color: Colors.grey)),
+      TextSpan(text: styledText, style: TextStyle(color: isMath ? Colors.white : (widget.isDarkMode ? Colors.white70 : Colors.black), fontSize: fs, fontFamily: isMath ? 'Courier' : null, fontWeight: isMath ? FontWeight.bold : FontWeight.normal, shadows: isMath ? [const Shadow(blurRadius: 2.0, color: Colors.cyanAccent)] : null)),
+      TextSpan(text: " (${m.location})", style: locationStyle),
+    ]));
+  }
+
   Widget _buildBooksList() => FutureBuilder<List<String>>(future: _dbService.getBooks(), builder: (context, snapshot) { if (!snapshot.hasData) return const Center(child: CircularProgressIndicator()); return ListView.builder(itemCount: snapshot.data!.length, itemBuilder: (context, index) => ListTile(title: Text(snapshot.data![index]), onTap: () => widget.onJumpToLocation(snapshot.data![index]))); });
   Widget _buildNotesList() => FutureBuilder<List<Map<String, dynamic>>>(future: _dbService.getNotes(), builder: (context, snapshot) { if (!snapshot.hasData) return const Center(child: CircularProgressIndicator()); return ListView.builder(itemCount: snapshot.data!.length, itemBuilder: (context, index) => ListTile(title: Text(snapshot.data![index]['title'] ?? 'No Title'), subtitle: Text(snapshot.data![index]['location'] ?? ''), onTap: () => widget.onJumpToLocation(snapshot.data![index]['location']))); });
-}
-
-class PhraseSyntax extends md.InlineSyntax {
-  PhraseSyntax() : super(r'Phrase\(([^,)]+)(?:,\s*([^)]+))?\)');
-  @override
-  bool onMatch(md.InlineParser parser, Match match) {
-    final String loc = match.group(1)!;
-    final String? opt = match.group(2);
-    parser.addNode(md.Element('phrase', [md.Text(loc)])
-      ..attributes['option'] = opt ?? '1');
-    return true;
-  }
-}
-
-class PhraseBuilder extends MarkdownElementBuilder {
-  final BibleViewStyle currentStyle;
-  final Map<String, String> continuityMap;
-  final Map<String, String> parenthesesMap;
-  final bool isDarkMode;
-  PhraseBuilder({required this.currentStyle, required this.continuityMap, required this.parenthesesMap, required this.isDarkMode});
-
-  @override
-  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    return DynamicPhraseWidget(
-      location: element.textContent,
-      option: element.attributes['option'] ?? '1',
-      style: currentStyle,
-      continuityMap: continuityMap,
-      parenthesesMap: parenthesesMap,
-      preferredStyle: preferredStyle,
-      isDarkMode: isDarkMode,
-    );
-  }
-}
-
-class DynamicPhraseWidget extends StatelessWidget {
-  final String location;
-  final String option;
-  final BibleViewStyle style;
-  final Map<String, String> continuityMap;
-  final Map<String, String> parenthesesMap;
-  final TextStyle? preferredStyle;
-  final bool isDarkMode;
-
-  const DynamicPhraseWidget({super.key, required this.location, required this.option, required this.style, required this.continuityMap, required this.parenthesesMap, this.preferredStyle, required this.isDarkMode});
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<String>(
-      future: _fetchPhrase(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox(width: 4, height: 4, child: CircularProgressIndicator(strokeWidth: 1));
-        return Text(snapshot.data!, style: preferredStyle);
-      },
-    );
-  }
-
-  Future<String> _fetchPhrase() async {
-    final loc = BibleLogic.parseLocation(location);
-    if (loc == null) return "INVALID_LOC";
-    if (option == '3') {
-      return "($location)";
-    }
-    final db = DatabaseService();
-    final verse = await db.getSpecificVerseByAbbr(loc.bookAbbr, loc.chapter, loc.verse);
-    if (verse == null) return "NOT_FOUND";
-    List<int> indices = [];
-    int end = loc.endWord == 0 ? loc.startWord : loc.endWord;
-    for (int i = loc.startWord; i <= end; i++) indices.add(i);
-    String phrase = BibleLogic.getStyledPhrase(verse, indices, style, continuityMap, parenthesesMap);
-    if (option == '2') {
-      phrase = "$phrase($location)";
-    }
-    return phrase;
-  }
-}
-
-class LatexSyntax extends md.InlineSyntax {
-  static final String _latexPattern = r'\$\$([\s\S]+?)\$\$';
-  LatexSyntax() : super(_latexPattern);
-
-  @override
-  bool onMatch(md.InlineParser parser, Match match) {
-    final String content = match.group(1)!;
-    parser.addNode(md.Element('latex', [md.Text(content)]));
-    return true;
-  }
-}
-
-class InlineLatexSyntax extends md.InlineSyntax {
-  static final String _pattern = r'\$([^\$]+?)\$';
-  InlineLatexSyntax() : super(_pattern);
-  @override
-  bool onMatch(md.InlineParser parser, Match match) {
-    final String content = match.group(1)!;
-    parser.addNode(md.Element('inlineLatex', [md.Text(content)]));
-    return true;
-  }
-}
-
-class LatexBuilder extends MarkdownElementBuilder {
-  final BibleViewStyle currentStyle;
-  final Map<String, String> continuityMap;
-  final Map<String, String> parenthesesMap;
-  final bool isDarkMode;
-  LatexBuilder({required this.currentStyle, required this.continuityMap, required this.parenthesesMap, required this.isDarkMode});
-
-  @override
-  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    return FutureBuilder<String>(
-      future: _processLatex(element.textContent),
-      builder: (context, snapshot) {
-        final String text = snapshot.data ?? element.textContent;
-        return RepaintBoundary(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-            width: double.infinity,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: Colors.blueGrey.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Math.tex(
-                text,
-                textStyle: preferredStyle?.copyWith(fontSize: 17, fontFamily: 'serif'),
-                onErrorFallback: (err) => SelectableText(text, style: const TextStyle(color: Colors.red, fontFamily: 'Courier')),
-              ),
-            ),
-          ),
-        );
-      }
-    );
-  }
-
-  Future<String> _processLatex(String raw) async {
-    final reg = RegExp(r'Phrase\(([^,)]+)(?:,\s*([^)]+))?\)');
-    String processed = raw;
-    final matches = reg.allMatches(raw).toList();
-    for (int i = 0; i < matches.length; i++) {
-      final m = matches[i];
-      final locStr = m.group(1)!;
-      final opt = m.group(2) ?? '1';
-      final loc = BibleLogic.parseLocation(locStr);
-      if (loc != null) {
-        if (opt == '3') {
-           processed = processed.replaceFirst(m.group(0)!, "\\text{($locStr)}");
-           continue;
-        }
-        final verse = await DatabaseService().getSpecificVerseByAbbr(loc.bookAbbr, loc.chapter, loc.verse);
-        if (verse != null) {
-          int end = loc.endWord == 0 ? loc.startWord : loc.endWord;
-          List<int> idxs = List.generate(end - loc.startWord + 1, (j) => loc.startWord + j);
-          String phrase = BibleLogic.getStyledPhrase(verse, idxs, currentStyle, continuityMap, parenthesesMap);
-          if (opt == '2') {
-            phrase = "$phrase($locStr)";
-          }
-          phrase = "\\text{$phrase}";
-          processed = processed.replaceFirst(m.group(0)!, phrase);
-        }
-      }
-    }
-    return processed;
-  }
-}
-
-class InlineLatexBuilder extends MarkdownElementBuilder {
-  final BibleViewStyle currentStyle;
-  final Map<String, String> continuityMap;
-  final Map<String, String> parenthesesMap;
-  final bool isDarkMode;
-  InlineLatexBuilder({required this.currentStyle, required this.continuityMap, required this.parenthesesMap, required this.isDarkMode});
-
-  @override
-  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    return FutureBuilder<String>(
-      future: _processLatex(element.textContent),
-      builder: (context, snapshot) {
-        return Math.tex(
-          snapshot.data ?? element.textContent,
-          textStyle: preferredStyle?.copyWith(fontSize: 14, fontFamily: 'serif'),
-          onErrorFallback: (err) => Text(element.textContent, style: const TextStyle(color: Colors.red)),
-        );
-      }
-    );
-  }
-
-  Future<String> _processLatex(String raw) async {
-    final reg = RegExp(r'Phrase\(([^,)]+)(?:,\s*([^)]+))?\)');
-    String processed = raw;
-    final matches = reg.allMatches(raw).toList();
-    for (int i = 0; i < matches.length; i++) {
-      final m = matches[i];
-      final locStr = m.group(1)!;
-      final opt = m.group(2) ?? '1';
-      final loc = BibleLogic.parseLocation(locStr);
-      if (loc != null) {
-        if (opt == '3') {
-           processed = processed.replaceFirst(m.group(0)!, "\\text{($locStr)}");
-           continue;
-        }
-        final verse = await DatabaseService().getSpecificVerseByAbbr(loc.bookAbbr, loc.chapter, loc.verse);
-        if (verse != null) {
-          int end = loc.endWord == 0 ? loc.startWord : loc.endWord;
-          List<int> idxs = List.generate(end - loc.startWord + 1, (j) => loc.startWord + j);
-          String phrase = BibleLogic.getStyledPhrase(verse, idxs, currentStyle, continuityMap, parenthesesMap);
-          if (opt == '2') {
-            phrase = "$phrase($locStr)";
-          }
-          phrase = "\\text{$phrase}";
-          processed = processed.replaceFirst(m.group(0)!, phrase);
-        }
-      }
-    }
-    return processed;
-  }
 }

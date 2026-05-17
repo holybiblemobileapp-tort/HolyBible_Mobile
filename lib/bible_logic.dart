@@ -80,7 +80,7 @@ class BibleLogic {
   };
 
   static const Map<String, int> _bookOrderMap = {
-    'Pre': 0, 'Gen': 1, 'Exo': 2, 'Lev': 3, 'Num': 4, 'Deu': 5, 'Jos': 6, 'Jud': 7, 'Rut': 8, '1Sa': 9, '2Sa': 10, '1Ki': 11, '2Ki': 12, '1Ch': 13, '2Ch': 14, 'Ezr': 15, 'Neh': 16, 'Est': 17, 'Job': 18, 'Psa': 19, 'Pro': 20, 'Ecc': 21, 'Son': 22, 'Isa': 23, 'Jer': 24, 'Lam': 25, 'Eze': 26, 'Dan': 27, 'Hos': 28, 'Joe': 29, 'Amo': 30, 'Oba': 31, 'Jon': 32, 'Mic': 33, 'Nah': 34, 'Hab': 35, 'Zep': 36, 'Hag': 37, 'Zec': 38, 'Mal': 39, 'Mat': 40, 'Mar': 41, 'Luk': 42, 'Joh': 43, 'Act': 44, 'Rom': 45, '1Co': 46, '2Co': 47, 'Gal': 48, 'Eph': 49, 'Phi': 50, 'Col': 51, '1Th': 52, '2Th': 53, '1Ti': 54, '2Ti': 55, 'Tit': 56, 'Heb': 58, 'Jam': 59, '1Pe': 60, '2Pe': 61, '1Jo': 62, '2Jo': 63, '3Jo': 64, 'Rev': 66
+    'Pre': 0, 'Gen': 1, 'Exo': 2, 'Lev': 3, 'Num': 4, 'Deu': 5, 'Jos': 6, 'Jud': 7, 'Rut': 8, '1Sa': 9, '2Sa': 10, '1Ki': 11, '2Ki': 12, '1Ch': 13, '2Ch': 14, 'Ezr': 15, 'Neh': 16, 'Est': 17, 'Job': 18, 'Psa': 19, 'Pro': 20, 'Ecc': 21, 'Son': 22, 'Isa': 23, 'Jer': 24, 'Lam': 25, 'Eze': 26, 'Dan': 27, 'Hos': 28, 'Joe': 29, 'Amo': 30, 'Oba': 31, 'Jon': 32, 'Mic': 33, 'Nah': 34, 'Hab': 35, 'Zep': 36, 'Hag': 37, 'Zec': 38, 'Mal': 39, 'Malachi': 39, 'Mat': 40, 'Mar': 41, 'Luk': 42, 'Joh': 43, 'Act': 44, 'Rom': 45, '1Co': 46, '2Co': 47, 'Gal': 48, 'Eph': 49, 'Phi': 50, 'Col': 51, '1Th': 52, '2Th': 53, '1Ti': 54, '2Ti': 55, 'Tit': 56, 'Heb': 58, 'Jam': 59, '1Pe': 60, '2Pe': 61, '1Jo': 62, '2Jo': 63, '3Jo': 64, 'Rev': 66, 'EPI': 67, 'EPILOGUE': 67
   };
 
   static int getBookOrder(String location) {
@@ -160,12 +160,64 @@ class BibleLogic {
       final regExp = RegExp(r'^(\d?[a-zA-Z]+)(\d+):(\d+)(?::(\d+))?(?:-(\d+))?$', caseSensitive: false);
       final match = regExp.firstMatch(clean.replaceAll(' ', ''));
       if (match != null) {
+        String book = match.group(1)!;
+        if (book.toUpperCase() == 'EPILOGUE') book = 'EPI';
         int start = match.group(4) != null ? int.parse(match.group(4)!) : 1;
         int end = match.group(5) != null ? int.parse(match.group(5)!) : (match.group(4) != null ? start : 0);
-        return BibleLocation(bookAbbr: match.group(1)!, chapter: int.parse(match.group(2)!), verse: int.parse(match.group(3)!), startWord: start, endWord: end);
+        return BibleLocation(bookAbbr: book, chapter: int.parse(match.group(2)!), verse: int.parse(match.group(3)!), startWord: start, endWord: end);
       }
     } catch (_) {}
     return null;
+  }
+
+  static List<BibleLocation> parseMultipleLocations(String input) {
+    List<BibleLocation> results = [];
+    List<String> rawParts = input.split(RegExp(r'[,\s_]+')).where((s) => s.isNotEmpty).toList();
+    
+    String? lastBook;
+    int? lastChapter;
+    int? lastVerse;
+
+    for (var part in rawParts) {
+      var loc = parseLocation(part);
+      if (loc != null) {
+        results.add(loc);
+        lastBook = loc.bookAbbr;
+        lastChapter = loc.chapter;
+        lastVerse = loc.verse;
+      } else {
+        // Try parsing partials e.g. "34-39" or "3:34-39"
+        final verseStartEndReg = RegExp(r'^(\d+):(\d+)-(\d+)$'); 
+        final verseStartReg = RegExp(r'^(\d+):(\d+)$'); 
+        final startEndReg = RegExp(r'^(\d+)-(\d+)$'); 
+        final singleReg = RegExp(r'^(\d+)$');
+
+        if (lastBook != null && lastChapter != null) {
+          Match? match;
+          if ((match = verseStartEndReg.firstMatch(part)) != null) {
+            int v = int.parse(match!.group(1)!);
+            int s = int.parse(match.group(2)!);
+            int e = int.parse(match.group(3)!);
+            results.add(BibleLocation(bookAbbr: lastBook, chapter: lastChapter, verse: v, startWord: s, endWord: e));
+            lastVerse = v;
+          } else if ((match = verseStartReg.firstMatch(part)) != null) {
+            int v = int.parse(match!.group(1)!);
+            int s = int.parse(match.group(2)!);
+            results.add(BibleLocation(bookAbbr: lastBook, chapter: lastChapter, verse: v, startWord: s, endWord: s));
+            lastVerse = v;
+          } else if ((match = startEndReg.firstMatch(part)) != null) {
+            int s = int.parse(match!.group(1)!);
+            int e = int.parse(match.group(2)!);
+            results.add(BibleLocation(bookAbbr: lastBook, chapter: lastChapter, verse: lastVerse ?? 1, startWord: s, endWord: e));
+          } else if ((match = singleReg.firstMatch(part)) != null) {
+            int s = int.parse(match!.group(1)!);
+            int e = int.parse(match.group(2)!);
+            results.add(BibleLocation(bookAbbr: lastBook, chapter: lastChapter, verse: lastVerse ?? 1, startWord: s, endWord: s));
+          }
+        }
+      }
+    }
+    return results;
   }
 
   static bool isLocationQuery(String q) {
@@ -267,7 +319,7 @@ class BibleLogic {
         inhibitOf = isStartOfVerse || precededByPunctuation || isEndOfVerse;
         inhibitFunction = isStartOfVerse || hasPunctuation || precededByPunctuation;
         bool isIsolated = !isFunctionWord(i - 1) && !isFunctionWord(i + 1);
-        bool isFirstInSeq = !isFunctionWord(i - 1) && i < verse.styledWords.length - 1 && isFunctionWord(i + 1);
+        bool isFirstInSeq = !isFunctionWord(i - 1) && i < verse.styledWords.length - 1 && i < verse.styledWords.length - 1 && isFunctionWord(i + 1);
         shouldReplaceFunction = isIsolated || isFirstInSeq;
       }
 
@@ -353,29 +405,189 @@ class BibleLogic {
     final mathWords = applyContinuity(verse, cont, parenthesesMap: par, style: style);
     StringBuffer sb = StringBuffer();
     bool isFirst = true;
+    int currentNesting = 0;
+
     for (int i in wordIndices) {
       try {
         final mw = mathWords.firstWhere((mw) => mw.original.index == i);
-        String content = mw.parts.map((p) => p.text).join('');
-        if (content.isNotEmpty) {
-          if (!isFirst && mw.hasLeadingSpace) sb.write(' ');
-          sb.write(content);
-          isFirst = false;
+        if (!isFirst && mw.hasLeadingSpace) {
+          sb.write(' ');
         }
+        
+        for (var p in mw.parts) {
+          String pText = p.text;
+          if (p.isParenthesis && p.isOfReplacement) {
+            if (pText.contains('(')) {
+              currentNesting += pText.length;
+            } else if (pText.contains(')')) {
+              int closerCount = pText.length;
+              if (currentNesting >= closerCount) {
+                currentNesting -= closerCount;
+              } else {
+                pText = pText.replaceAll(')', '');
+              }
+            }
+          }
+
+          if (pText.isNotEmpty) {
+            sb.write(pText);
+          }
+        }
+        isFirst = false;
       } catch (_) {}
     }
-    return sb.toString();
+    
+    while (currentNesting > 0) {
+      sb.write(')');
+      currentNesting--;
+    }
+    return sb.toString().trim();
+  }
+
+  static List<InlineSpan> getStyledSpans(BibleVerse verse, List<int> wordIndices, BibleViewStyle style, Map<String, String> cont, Map<String, String> par, {bool isDarkMode = false, TextStyle? baseStyle}) {
+    if (wordIndices.isEmpty) return [];
+    final mathWords = applyContinuity(verse, cont, parenthesesMap: par, style: style);
+    final bool isMath = style != BibleViewStyle.standard && style != BibleViewStyle.superscript;
+    final Color symbolColor = getMathSymbolColor(style);
+    
+    List<InlineSpan> spans = [];
+    bool isFirst = true;
+    int currentNesting = 0;
+
+    for (int i in wordIndices) {
+      try {
+        final mw = mathWords.firstWhere((mw) => mw.original.index == i);
+        if (!isFirst && mw.hasLeadingSpace) spans.add(TextSpan(text: ' ', style: baseStyle));
+        
+        for (var p in mw.parts) {
+          String pText = p.text;
+          if (p.isParenthesis && p.isOfReplacement) {
+            if (pText.contains('(')) {
+              currentNesting += pText.length;
+            } else if (pText.contains(')')) {
+              int closers = pText.length;
+              if (currentNesting >= closers) {
+                currentNesting -= closers;
+              } else {
+                pText = pText.replaceAll(')', '');
+              }
+            }
+          }
+          
+          if (pText.isEmpty) continue;
+
+          final bool isPilcrow = pText.contains('¶');
+          final List<Shadow>? shadows = isMath ? [
+            Shadow(blurRadius: p.isRed ? 4.0 : 2.0, color: p.isRed ? symbolColor : Colors.cyanAccent.withOpacity(0.5))
+          ] : null;
+          
+          spans.add(TextSpan(
+            text: pText,
+            style: (baseStyle ?? const TextStyle()).copyWith(
+              color: isPilcrow ? Colors.red : (p.isRed ? symbolColor : (isMath || isDarkMode ? Colors.white : Colors.black)),
+              fontWeight: (isPilcrow || p.isRed) ? FontWeight.bold : FontWeight.normal,
+              fontStyle: p.isItalic ? FontStyle.italic : FontStyle.normal,
+              fontFamily: isMath ? 'Courier' : null,
+              shadows: shadows,
+            )
+          ));
+        }
+        isFirst = false;
+      } catch (_) {}
+    }
+    
+    if (currentNesting > 0) {
+      spans.add(TextSpan(text: ')' * currentNesting, style: baseStyle?.copyWith(color: symbolColor, fontWeight: FontWeight.bold)));
+    }
+    return spans;
+  }
+
+  static String getLatexStyledPhrase(BibleVerse verse, List<int> wordIndices, BibleViewStyle style, Map<String, String> cont, Map<String, String> par) {
+    if (wordIndices.isEmpty) return "";
+    final mathWords = applyContinuity(verse, cont, parenthesesMap: par, style: style);
+    StringBuffer sb = StringBuffer();
+    bool isFirst = true;
+    int currentNesting = 0;
+    
+    String latexColor = "";
+    if (style == BibleViewStyle.mathematics) latexColor = "red";
+    else if (style == BibleViewStyle.mathematics2) latexColor = "orange";
+    else if (style == BibleViewStyle.mathematicsUnconstraint) latexColor = "yellow";
+
+    final bool isSuperscript = style == BibleViewStyle.superscript;
+
+    for (int i in wordIndices) {
+      try {
+        final mw = mathWords.firstWhere((mw) => mw.original.index == i);
+        if (!isFirst && mw.hasLeadingSpace) sb.write(r'\ '); 
+        
+        for (var p in mw.parts) {
+          String pText = p.text;
+          if (p.isParenthesis && p.isOfReplacement) {
+            if (pText.contains('(')) {
+              currentNesting += pText.length;
+            } else if (pText.contains(')')) {
+              int closers = pText.length;
+              if (currentNesting >= closers) {
+                currentNesting -= closers;
+              } else {
+                pText = pText.replaceAll(')', '');
+              }
+            }
+          }
+          
+          if (pText.isEmpty) continue;
+
+          String text = pText
+            .replaceAll('{', r'\{')
+            .replaceAll('}', r'\}')
+            .replaceAll('_', r'\_')
+            .replaceAll('&', r'\&')
+            .replaceAll(r'\u0024', r'\$')
+            .replaceAll('%', r'\%')
+            .replaceAll('#', r'\#');
+          
+          String partLatex;
+          if (p.isRed && latexColor.isNotEmpty) {
+            partLatex = "\\textcolor{$latexColor}{\\text{$text}}";
+          } else {
+            if (p.isItalic) {
+              partLatex = "\\textit{\\text{$text}}";
+            } else {
+              partLatex = "\\text{$text}";
+            }
+          }
+
+          if (isSuperscript && !p.isParenthesis) {
+            sb.write("{$partLatex}^{\\text{\\tiny ${mw.original.index}}}");
+          } else {
+            sb.write(partLatex);
+          }
+        }
+        isFirst = false;
+      } catch (_) {}
+    }
+    
+    if (currentNesting > 0) {
+      String closers = ')' * currentNesting;
+      if (latexColor.isNotEmpty) {
+        sb.write("\\textcolor{$latexColor}{\\text{$closers}}");
+      } else {
+        sb.write("\\text{$closers}");
+      }
+    }
+    return sb.toString().trim();
   }
 
   static String formatInverseRelation(String query, List<BibleMatch> results) {
     final cleanQuery = query.trim();
     if (isLocationQuery(cleanQuery)) {
-      if (results.isEmpty) return "$cleanQuery ↦ NULL";
+      if (results.isEmpty) return "$cleanQuery↦NULL";
       final fullPhrase = results.map((m) => m.phrase).join(' ').trim();
-      return "$cleanQuery ↦ $fullPhrase($cleanQuery)";
+      return "$cleanQuery↦$fullPhrase($cleanQuery)"; 
     }
     final String joined = results.map((m) => m.location).join('; ');
-    return "$query ↦ { $joined } RecordCount: ${results.length}";
+    return "$query↦{$joined} RecordCount: ${results.length}";
   }
 
   static List<TextSpan> highlightText(String text, String query, {TextStyle? normalStyle, TextStyle? highlightStyle}) {
